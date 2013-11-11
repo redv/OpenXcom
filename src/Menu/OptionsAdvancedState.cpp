@@ -43,7 +43,7 @@ OptionsAdvancedState::OptionsAdvancedState(Game *game, OptionsOrigin origin) : O
 {
 	// Create objects
 	_window = new Window(this, 320, 200, 0, 0, POPUP_BOTH);
-	_txtTitle = new Text(320, 16, 0, 8);
+	_txtTitle = new Text(320, 17, 0, 8);
 	_btnOk = new TextButton(148, 16, 8, 176);
 	_btnCancel = new TextButton(148, 16, 164, 176);
 	_lstOptions = new TextList(268, 104, 20, 30);
@@ -107,6 +107,7 @@ OptionsAdvancedState::OptionsAdvancedState(Game *game, OptionsOrigin origin) : O
 	_settingBoolSet.push_back(std::pair<std::string, bool>("researchedItemsWillSpent", false));
 	_settingBoolSet.push_back(std::pair<std::string, bool>("battleScrollDragInvert", false));
 	_settingBoolSet.push_back(std::pair<std::string, bool>("allowPsionicCapture", false));
+	_settingBoolSet.push_back(std::pair<std::string, bool>("psiStrengthEval", false));
 	_settingBoolSet.push_back(std::pair<std::string, bool>("anytimePsiTraining", false));
 
 	_boolQuantity = _settingBoolSet.size();
@@ -124,6 +125,7 @@ OptionsAdvancedState::OptionsAdvancedState(Game *game, OptionsOrigin origin) : O
 	_settingIntSet.push_back(std::pair<std::string, int>("battleNewPreviewPath", 0));
 	_settingIntSet.push_back(std::pair<std::string, int>("battleExplosionHeight", 0));
 	_settingIntSet.push_back(std::pair<std::string, int>("autosave", 0));
+	_settingIntSet.push_back(std::pair<std::string, int>("maxFrameSkip", 0));
 
 	for (std::vector<std::pair<std::string, int> >::iterator i = _settingIntSet.begin(); i != _settingIntSet.end(); ++i)
 	{
@@ -136,7 +138,7 @@ OptionsAdvancedState::OptionsAdvancedState(Game *game, OptionsOrigin origin) : O
 		}
 		else
 		{
-			ss << (*i).second;
+			ss << i->second;
 		}
 		transform(settingName.begin(), settingName.end(), settingName.begin(), toupper);
 		_lstOptions->addRow(2, tr("STR_" + settingName).c_str(), ss.str().c_str());
@@ -145,7 +147,7 @@ OptionsAdvancedState::OptionsAdvancedState(Game *game, OptionsOrigin origin) : O
 
 	_lstOptions->setSelectable(true);
 	_lstOptions->setBackground(_window);
-	_lstOptions->onMouseClick((ActionHandler)&OptionsAdvancedState::lstOptionsClick);
+	_lstOptions->onMousePress((ActionHandler)&OptionsAdvancedState::lstOptionsPress);
 	_lstOptions->onMouseOver((ActionHandler)&OptionsAdvancedState::lstOptionsMouseOver);
 	_lstOptions->onMouseOut((ActionHandler)&OptionsAdvancedState::lstOptionsMouseOut);
 }
@@ -184,8 +186,12 @@ void OptionsAdvancedState::btnCancelClick(Action *)
 	_game->popState();
 }
 
-void OptionsAdvancedState::lstOptionsClick(Action *)
+void OptionsAdvancedState::lstOptionsPress(Action *action)
 {
+	if (action->getDetails()->button.button != SDL_BUTTON_LEFT && action->getDetails()->button.button != SDL_BUTTON_RIGHT)
+	{
+		return;
+	}
 	size_t sel = _lstOptions->getSelectedRow();
 	std::wstring settingText = L"";
 	if (sel < _boolQuantity)
@@ -197,28 +203,51 @@ void OptionsAdvancedState::lstOptionsClick(Action *)
 	{
 		size_t intSel = sel - _boolQuantity;
 		int increment = 1;
+		if (action->getDetails()->button.button == SDL_BUTTON_RIGHT)
+		{
+			increment = -1;
+		}
 		std::wstringstream ss;
-		// this is purely future-proofing.
 		switch (intSel)
 		{
 		case 0: // pathfinding setting
-			if (_settingIntSet.at(intSel).second == 3)
-			{
-				increment = -3;
-			}
 			_settingIntSet.at(intSel).second += increment;
+			if (_settingIntSet.at(intSel).second == 4)
+			{
+				_settingIntSet.at(intSel).second = 0;
+			}
+			if (_settingIntSet.at(intSel).second == -1)
+			{
+				_settingIntSet.at(intSel).second = 3;
+			}
 			ss << updatePathString(intSel).c_str();
 			break;
 		case 1: // explosion height
-			if (_settingIntSet.at(intSel).second == 3)
-			{
-				increment = -3;
-			}
 			_settingIntSet.at(intSel).second += increment;
+			if (_settingIntSet.at(intSel).second == 4)
+			{
+				_settingIntSet.at(intSel).second = 0;
+			}
+			if (_settingIntSet.at(intSel).second == -1)
+			{
+				_settingIntSet.at(intSel).second = 3;
+			}
 			ss << _settingIntSet.at(intSel).second;
 			break;
 		case 2: // autosave
 			_settingIntSet.at(intSel).second = ++_settingIntSet.at(intSel).second % 4;
+			ss << _settingIntSet.at(intSel).second;
+			break;
+		case 3: // frame skip
+			_settingIntSet.at(intSel).second += increment;
+			if (_settingIntSet.at(intSel).second > 10)
+			{
+				_settingIntSet.at(intSel).second = 0;
+			}
+			if (_settingIntSet.at(intSel).second < 0)
+			{
+				_settingIntSet.at(intSel).second = 10;
+			}
 			ss << _settingIntSet.at(intSel).second;
 			break;
 		default:
@@ -234,7 +263,7 @@ void OptionsAdvancedState::lstOptionsClick(Action *)
 void OptionsAdvancedState::lstOptionsMouseOver(Action *)
 {
 	size_t sel = _lstOptions->getSelectedRow();
-	std::stringstream ss;
+	std::ostringstream ss;
 	std::string settingName;
 	if (sel < _boolQuantity)
 	{

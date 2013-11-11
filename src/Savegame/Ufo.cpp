@@ -17,6 +17,12 @@
  * along with OpenXcom.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "Ufo.h"
+#include <assert.h>
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <sstream>
+#include <algorithm>
+#include "../aresame.h"
 #include "Craft.h"
 #include "AlienMission.h"
 #include "../Engine/Exception.h"
@@ -26,10 +32,6 @@
 #include "../Ruleset/UfoTrajectory.h"
 #include "SavedGame.h"
 #include "Waypoint.h"
-#include <assert.h>
-#include <cmath>
-#include <sstream>
-#include <algorithm>
 
 namespace OpenXcom
 {
@@ -103,7 +105,7 @@ private:
 void Ufo::load(const YAML::Node &node, const Ruleset &ruleset, SavedGame &game)
 {
 	MovingTarget::load(node);
-	_id = _crashId = _landId = node["id"].as<int>(_id);
+	_id = node["id"].as<int>(_id);
 	_crashId = node["crashId"].as<int>(_crashId);
 	_landId = node["landId"].as<int>(_landId);
 	_damage = node["damage"].as<int>(_damage);
@@ -398,13 +400,13 @@ void Ufo::calculateSpeed()
 	double y = -_speedLat;
 
 	// This section guards vs. divide-by-zero.
-	if (x == 0.f || y == 0.f)
+	if (AreSame(x, 0.0) || AreSame(y, 0.0))
 	{
-		if (x == 0.f && y == 0.f)
+		if (AreSame(x, 0.0) && AreSame(y, 0.0))
 		{
 			_direction = "STR_NONE_UC";
 		}
-		else if (x == 0.f)
+		else if (AreSame(x, 0.0))
 		{
 			if (y > 0.f)
 			{
@@ -415,7 +417,7 @@ void Ufo::calculateSpeed()
 				_direction = "STR_SOUTH";
 			}
 		}
-		else if (y == 0.f)
+		else if (AreSame(y, 0.0))
 		{
 			if (x > 0.f)
 			{

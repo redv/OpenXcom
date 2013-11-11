@@ -137,7 +137,7 @@ void UnitDieBState::think()
 			_unit->instaKill();
 		}
 		_parent->getMap()->setUnitDying(false);
-		if (_unit->getTurnsExposed())
+		if (_unit->getTurnsExposed() < 255)
 		{
 			_unit->setTurnsExposed(255);
 		}
@@ -158,13 +158,16 @@ void UnitDieBState::think()
 			Game *game = _parent->getSave()->getBattleState()->getGame();
 			if (_unit->getStatus() == STATUS_DEAD)
 			{
-				if (_damageType == DT_NONE)
+				if (_unit->getArmor()->getSize() == 1)
 				{
-					game->pushState(new InfoboxOKState(game, game->getLanguage()->getString("STR_HAS_DIED_FROM_A_FATAL_WOUND", _unit->getGender()).arg(_unit->getName(game->getLanguage()))));
-				}
-				else if (Options::getBool("battleNotifyDeath"))
-				{
-					game->pushState(new InfoboxState(game, game->getLanguage()->getString("STR_HAS_BEEN_KILLED", _unit->getGender()).arg(_unit->getName(game->getLanguage()))));
+					if (_damageType == DT_NONE)
+					{
+						game->pushState(new InfoboxOKState(game, game->getLanguage()->getString("STR_HAS_DIED_FROM_A_FATAL_WOUND", _unit->getGender()).arg(_unit->getName(game->getLanguage()))));
+					}
+					else if (Options::getBool("battleNotifyDeath"))
+					{
+						game->pushState(new InfoboxState(game, game->getLanguage()->getString("STR_HAS_BEEN_KILLED", _unit->getGender()).arg(_unit->getName(game->getLanguage()))));
+					}
 				}
 			}
 			else
@@ -239,7 +242,10 @@ void UnitDieBState::convertUnitToCorpse()
 		BattleItem *corpse = new BattleItem(_parent->getRuleset()->getItem(_unit->getArmor()->getCorpseItem()),_parent->getSave()->getCurrentItemId());
 		corpse->setUnit(_unit);
 		_parent->dropItem(_unit->getPosition(), corpse, true);
-		_parent->getSave()->getTile(lastPosition)->setUnit(0);
+		if (_parent->getSave()->getTile(lastPosition)->getUnit() == _unit)	// check in case unit was displaced by another unit
+		{
+			_parent->getSave()->getTile(lastPosition)->setUnit(0);
+		}
 	}
 	else
 	{
@@ -248,11 +254,14 @@ void UnitDieBState::convertUnitToCorpse()
 		{
 			for (int x = 0; x <= size; x++)
 			{
-				std::stringstream ss;
+				std::ostringstream ss;
 				ss << _unit->getArmor()->getCorpseItem() << i;
 				BattleItem *corpse = new BattleItem(_parent->getRuleset()->getItem(ss.str()),_parent->getSave()->getCurrentItemId());
 				corpse->setUnit(_unit);
-				_parent->getSave()->getTile(lastPosition + Position(x,y,0))->setUnit(0);
+				if (_parent->getSave()->getTile(lastPosition + Position(x,y,0))->getUnit() == _unit) // check in case unit was displaced by another unit
+				{
+					_parent->getSave()->getTile(lastPosition + Position(x,y,0))->setUnit(0);
+				}
 				_parent->dropItem(lastPosition + Position(x,y,0), corpse, true);
 				i++;
 			}

@@ -70,9 +70,9 @@ UfoDetectedState::UfoDetectedState(Game *game, Ufo *ufo, GeoscapeState *state, b
 	}
 	_btnCentre = new TextButton(200, 12, 28, 128);
 	_btnCancel = new TextButton(200, 12, 28, 144);
-	_txtUfo = new Text(207, 16, 28, 56);
-	_txtDetected = new Text(100, 8, 28, 72);
-	_txtHyperwave = new Text(214, 16, 21, 44);
+	_txtUfo = new Text(207, 17, 28, 56);
+	_txtDetected = new Text(100, 9, 28, 72);
+	_txtHyperwave = new Text(214, 17, 21, 44);
 	_lstInfo = new TextList(207, 32, 28, 82);
 	_lstInfo2 = new TextList(207, 32, 28, 96);
 
@@ -159,9 +159,7 @@ UfoDetectedState::UfoDetectedState(Game *game, Ufo *ufo, GeoscapeState *state, b
 	}
 	_lstInfo->addRow(2, tr("STR_HEADING").c_str(), tr(heading).c_str());
 	_lstInfo->setCellColor(2, 1, Palette::blockOffset(8)+10);
-	std::wstringstream ss;
-	ss << _ufo->getSpeed();
-	_lstInfo->addRow(2, tr("STR_SPEED").c_str(), ss.str().c_str());
+	_lstInfo->addRow(2, tr("STR_SPEED").c_str(), Text::formatNumber(_ufo->getSpeed()).c_str());
 	_lstInfo->setCellColor(3, 1, Palette::blockOffset(8)+10);
 
 	_lstInfo2->setColor(Palette::blockOffset(8)+5);

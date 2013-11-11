@@ -108,7 +108,10 @@ void ProjectileFlyBState::init()
 	if (_unit->getFaction() != _parent->getSave()->getSide())
 	{
 		// no ammo or target is dead: give the time units back and cancel the shot.
-		if (_ammo == 0 || !_parent->getSave()->getTile(_action.target)->getUnit() || _parent->getSave()->getTile(_action.target)->getUnit()->isOut())
+		if (_ammo == 0
+			|| !_parent->getSave()->getTile(_action.target)->getUnit()
+			|| _parent->getSave()->getTile(_action.target)->getUnit()->isOut()
+			|| _parent->getSave()->getTile(_action.target)->getUnit() != _parent->getSave()->getSelectedUnit())
 		{
 			_unit->setTimeUnits(_unit->getTimeUnits() + _unit->getActionTUs(_action.type, _action.weapon));
 			_parent->popState();
@@ -195,15 +198,8 @@ bool ProjectileFlyBState::createNewProjectile()
 	// add the projectile on the map
 	_parent->getMap()->setProjectile(projectile);
 
-	// set the speed of the projectile
-	if (_action.type == BA_THROW)
-	{
-		_parent->setStateInterval(Options::getInt("battleFireSpeed"));
-	}
-	else
-	{
-		_parent->setStateInterval(std::max(1, Options::getInt("battleFireSpeed") - _action.weapon->getRules()->getBulletSpeed()));
-	}
+	// set the speed of the state think cycle to 16 ms (roughly one think cycle per frame)
+	_parent->setStateInterval(1000/60);
 
 	// let it calculate a trajectory
 	_projectileImpact = -1;
@@ -319,7 +315,7 @@ void ProjectileFlyBState::think()
 			{
 				_parent->getMap()->getCamera()->setMapOffset(_action.cameraPosition);
 			}
-			if (_action.type != BA_PANIC && _action.type != BA_MINDCONTROL)
+			if (_action.type != BA_PANIC && _action.type != BA_MINDCONTROL && !_parent->getSave()->getUnitsFalling())
 			{
 				_parent->getTileEngine()->checkReactionFire(_unit);
 			}

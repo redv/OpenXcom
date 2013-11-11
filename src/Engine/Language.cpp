@@ -159,9 +159,26 @@ std::string Language::wstrToCp(const std::wstring& src)
 #else
 	const int MAX = 500;
 	char buffer[MAX];
+	setlocale(LC_ALL, "");
 	wcstombs(buffer, src.c_str(), MAX);
+	setlocale(LC_ALL, "C");
 	std::string str(buffer);
 	return str;
+#endif
+}
+
+/**
+ * Takes a wide-character string and converts it to an
+ * 8-bit string with the filesystem encoding.
+ * @param src Wide-character string.
+ * @return Filesystem string.
+ */
+std::string Language::wstrToFs(const std::wstring& src)
+{
+#ifdef _WIN32
+	return Language::wstrToCp(src);
+#else
+	return Language::wstrToUtf8(src);
 #endif
 }
 
@@ -250,10 +267,27 @@ std::wstring Language::cpToWstr(const std::string& src)
 #else
 	const int MAX = 500;
 	wchar_t buffer[MAX + 1];
+	setlocale(LC_ALL, "");
 	size_t len = mbstowcs(buffer, src.c_str(), MAX);
+	setlocale(LC_ALL, "C");
 	if (len == (size_t)-1)
 		return L"?";
 	return std::wstring(buffer, len);
+#endif
+}
+
+/**
+ * Takes an 8-bit string with the filesystem encoding
+ * and converts it to a wide-character string.
+ * @param src Filesystem string.
+ * @return Wide-character string.
+ */
+std::wstring Language::fsToWstr(const std::string& src)
+{
+#ifdef _WIN32
+	return Language::cpToWstr(src);
+#else
+	return Language::utf8ToWstr(src);
 #endif
 }
 
@@ -297,7 +331,7 @@ std::vector<std::string> Language::getList(TextList *list)
 
 	for (std::vector<std::string>::iterator i = langs.begin(); i != langs.end(); ++i)
 	{
-		(*i) = i->substr(0, i->length() - 4);
+		(*i) = CrossPlatform::noExt(*i);
 		if (list != 0)
 		{
 			std::wstring name;
@@ -308,7 +342,7 @@ std::vector<std::string> Language::getList(TextList *list)
 			}
 			else
 			{
-				name = Language::cpToWstr(*i);
+				name = Language::fsToWstr(*i);
 			}
 			list->addRow(1, name.c_str());
 		}

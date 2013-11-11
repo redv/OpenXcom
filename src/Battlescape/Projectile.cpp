@@ -52,9 +52,19 @@ namespace OpenXcom
  */
 Projectile::Projectile(ResourcePack *res, SavedBattleGame *save, BattleAction action, Position origin) : _res(res), _save(save), _action(action), _origin(origin), _position(0)
 {
-	if (_action.weapon && _action.type == BA_THROW)
+	// this is the number of pixels the sprite will move between frames
+	_speed = Options::getInt("battleFireSpeed");
+
+	if (_action.weapon)
 	{
-		_sprite = _res->getSurfaceSet("FLOOROB.PCK")->getFrame(getItem()->getRules()->getFloorSprite());
+		if (_action.type == BA_THROW)
+		{
+			_sprite = _res->getSurfaceSet("FLOOROB.PCK")->getFrame(getItem()->getRules()->getFloorSprite());
+		}
+		else
+		{
+			_speed = std::max(1, _speed + _action.weapon->getRules()->getBulletSpeed());
+		}
 	}
 }
 
@@ -242,7 +252,7 @@ int Projectile::calculateThrow(double accuracy)
 	// object blocking - can't throw here
 	if (_action.type == BA_THROW &&_save->getTile(_action.target) && _save->getTile(_action.target)->getMapData(MapData::O_OBJECT) && _save->getTile(_action.target)->getMapData(MapData::O_OBJECT)->getTUCost(MT_WALK) == 255)
 	{
-		return false;
+		return -1;
 	}
 
 	originVoxel = Position(_origin.x*16 + 8, _origin.y*16 + 8, _origin.z*24);
@@ -326,7 +336,6 @@ int Projectile::calculateThrow(double accuracy)
 	if (_save->getTile(endPoint) && _save->getTile(endPoint)->getMapData(MapData::O_OBJECT) && _save->getTile(endPoint)->getMapData(MapData::O_OBJECT)->getTUCost(MT_WALK) == 255)
 	{
 		_trajectory.clear();
-		retValue = -1;
 		// finally do a line calculation and store this trajectory.
 		retValue = _save->getTileEngine()->calculateParabola(originVoxel, targetVoxel, true, &_trajectory, bu, curvature, 1.0);
 	}
@@ -433,22 +442,16 @@ void Projectile::applyAccuracy(const Position& origin, Position *target, double 
  */
 bool Projectile::move()
 {
-	_position++;
-	if (_position == _trajectory.size())
+	for (int i = 0; i < _speed; ++i)
 	{
-		_position--;
-		return false;
+		_position++;
+		if (_position == _trajectory.size())
+		{
+			_position--;
+			return false;
+		}
 	}
-	_position++;
-	if (_position == _trajectory.size())
-	{
-		_position--;
-		return false;
-	}
-	else
-	{
-		return true;
-	}
+	return true;
 }
 
 /**

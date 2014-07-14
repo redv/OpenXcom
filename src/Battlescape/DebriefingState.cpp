@@ -584,6 +584,7 @@ void DebriefingState::prepareDebriefing()
 	}
 
 	// time to care for units.
+	_noContainment = base->getAvailableContainment() == 0;
 	for (std::vector<BattleUnit*>::iterator j = battle->getUnits()->begin(); j != battle->getUnits()->end(); ++j)
 	{
 		UnitStatus status = (*j)->getStatus();
@@ -720,19 +721,18 @@ void DebriefingState::prepareDebriefing()
 					corpseItem = _game->getRuleset()->getArmor(_game->getRuleset()->getUnit((*j)->getSpawnUnit())->getArmor())->getCorpseGeoscape();
 				}
 				// 10 points for recovery
-				addStat("STR_LIVE_ALIENS_RECOVERED", 1, 10);
+				int pointsForLiveAlien = _noContainment? 0 : 10;
 				RuleResearch *research = _game->getRuleset()->getResearch(type);
 				if (research != 0 && _game->getSavedGame()->isResearchAvailable(research, _game->getSavedGame()->getDiscoveredResearch(), _game->getRuleset()))
 				{
-					// more points if it's not researched
-					addStat("STR_LIVE_ALIENS_RECOVERED", 0, ((*j)->getValue() * 2) - 10);
-					if (base->getAvailableContainment() == 0)
+					if (_noContainment)
 					{
-						_noContainment = true;
 						base->getItems()->addItem(corpseItem, 1);
 					}
 					else
 					{
+						// more points if it's not researched
+						pointsForLiveAlien = value * 2;
 						base->getItems()->addItem(type, 1);
 						_manageContainment = base->getAvailableContainment() - (base->getUsedContainment() * _limitsEnforced) < 0;
 					}
@@ -748,6 +748,7 @@ void DebriefingState::prepareDebriefing()
 						base->getItems()->addItem(corpseItem, 1);
 					}
 				}
+				addStat("STR_LIVE_ALIENS_RECOVERED", 1, pointsForLiveAlien);
 			}
 			else if (oldFaction == FACTION_NEUTRAL)
 			{

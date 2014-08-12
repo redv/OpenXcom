@@ -644,7 +644,6 @@ void AlienMission::spawnAlienBase(const Globe &globe, Game &engine)
 	std::pair<double, double> pos = getLandPoint(globe, regionRules, RuleRegion::ALIEN_BASE_ZONE);
 	AlienBase *ab = new AlienBase();
 	ab->setAlienRace(_race);
-	ab->setId(game.getId("STR_ALIEN_BASE"));
 	ab->setLongitude(pos.first);
 	ab->setLatitude(pos.second);
 	game.getAlienBases()->push_back(ab);

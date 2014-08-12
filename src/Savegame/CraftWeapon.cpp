@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,6 +18,8 @@
  */
 #include "CraftWeapon.h"
 #include "../Ruleset/RuleCraftWeapon.h"
+#include "../Ruleset/Ruleset.h"
+#include "../Ruleset/RuleItem.h"
 #include "CraftWeaponProjectile.h"
 
 namespace OpenXcom
@@ -84,6 +86,7 @@ int CraftWeapon::getAmmo() const
 /**
  * Changes the ammo contained in this craft weapon.
  * @param ammo Weapon ammo.
+ * @return If the weapon ran out of ammo.
  */
 bool CraftWeapon::setAmmo(int ammo)
 {
@@ -121,14 +124,26 @@ void CraftWeapon::setRearming(bool rearming)
 
 /**
  * Rearms this craft weapon's ammo.
+ * @param available number of clips available.
+ * @param clipSize number of rounds in said clips.
+ * @return number of clips used.
  */
-void CraftWeapon::rearm()
+int CraftWeapon::rearm(const int available, const int clipSize)
 {
-	setAmmo(_ammo + _rules->getRearmRate());
-	if (_ammo == _rules->getAmmoMax())
-	{
-		_rearming = false;
+	int needed = 0;
+
+	if (clipSize > 0)
+	{	// +(clipSize - 1) for correct rounding up
+		needed = std::min(_rules->getRearmRate(), _rules->getAmmoMax() - _ammo + clipSize - 1) / clipSize;
 	}
+
+	int ammoUsed = (available >= needed)? _rules->getRearmRate() : available * clipSize;
+
+	setAmmo(_ammo + ammoUsed);
+
+	_rearming = _ammo < _rules->getAmmoMax();
+
+	return (clipSize <= 0)? 0 : ammoUsed / clipSize;
 }
 
 /*
@@ -144,6 +159,24 @@ CraftWeaponProjectile* CraftWeapon::fire() const
 	p->setDamage(this->getRules()->getDamage());
 	p->setRange(this->getRules()->getRange());
 	return p;
+}
+
+/*
+ * get how many clips are loaded into this weapon.
+ * @param ruleset a pointer to the core ruleset.
+ * @return number of clips loaded.
+ */
+int CraftWeapon::getClipsLoaded(Ruleset *ruleset)
+{
+	int retVal = (int)floor((double)_ammo / _rules->getRearmRate());
+	RuleItem *clip = ruleset->getItem(_rules->getClipItem());
+
+	if (clip && clip->getClipSize() > 0)
+	{
+		retVal = (int)floor((double)_ammo / clip->getClipSize());
+	}
+
+	return retVal;
 }
 
 }

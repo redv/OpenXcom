@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -29,6 +29,7 @@ class Window;
 class Text;
 class TextList;
 class Base;
+class Craft;
 
 /**
  * Select Squad screen that lets the player
@@ -44,21 +45,29 @@ private:
 
 	Base *_base;
 	size_t _craft;
+	///initializes the display list based on the craft soldier's list and the position to display
+	void initList(size_t scrl);
 public:
 	/// Creates the Craft Soldiers state.
-	CraftSoldiersState(Game *game, Base *base, size_t craft);
+	CraftSoldiersState(Base *base, size_t craft);
 	/// Cleans up the Craft Soldiers state.
 	~CraftSoldiersState();
 	/// Handler for clicking the OK button.
 	void btnOkClick(Action *action);
-	/// Shows Soldiers in a list.
-	void populateList();
+	/// Updates the soldiers list.
+	void init();
 	/// Handler for clicking the Soldiers reordering button.
 	void lstItemsLeftArrowClick(Action *action);
+	/// Moves a soldier up.
+	void moveSoldierUp(Action *action, unsigned int row, bool max = false);
 	/// Handler for clicking the Soldiers reordering button.
 	void lstItemsRightArrowClick(Action *action);
+	/// Moves a soldier down.
+	void moveSoldierDown(Action *action, unsigned int row, bool max = false);
 	/// Handler for clicking the Soldiers list.
 	void lstSoldiersClick(Action *action);
+	/// Handler for pressing-down a mouse-button in the list.
+	void lstSoldiersMousePress(Action *action);
 };
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -18,6 +18,8 @@
  */
 #include "MedikitView.h"
 #include "../Engine/Game.h"
+#include "../Ruleset/Ruleset.h"
+#include "../Ruleset/RuleInterface.h"
 #include "../Engine/SurfaceSet.h"
 #include "../Resource/ResourcePack.h"
 #include "../Engine/Action.h"
@@ -55,6 +57,7 @@ const std::string PARTS_STRING[6] =
  */
 MedikitView::MedikitView (int w, int h, int x, int y, Game * game, BattleUnit *unit, Text *partTxt, Text *woundTxt) : InteractiveSurface(w, h, x, y), _game(game), _selectedPart(0), _unit(unit), _partTxt(partTxt), _woundTxt(woundTxt)
 {
+	updateSelectedPart();
 	_redraw = true;
 }
 
@@ -65,15 +68,20 @@ void MedikitView::draw()
 {
 	SurfaceSet *set = _game->getResourcePack()->getSurfaceSet("MEDIBITS.DAT");
 	int fatal_wound = _unit->getFatalWound(_selectedPart);
-	std::wstringstream ss, ss1;
+	std::wostringstream ss, ss1;
+	int green = 0;
 	int red = 3;
-
+	if (_game->getRuleset()->getInterface("medikit") && _game->getRuleset()->getInterface("medikit")->getElement("body"))
+	{
+		green = _game->getRuleset()->getInterface("medikit")->getElement("body")->color;
+		red = _game->getRuleset()->getInterface("medikit")->getElement("body")->color2;
+	}
 	this->lock();
-	for (int i = 0; i < set->getTotalFrames(); i++)
+	for (unsigned int i = 0; i < set->getTotalFrames(); i++)
 	{
 		int wound = _unit->getFatalWound(i);
 		Surface * surface = set->getFrame (i);
-		int baseColor = wound ? red : 0;
+		int baseColor = wound ? red : green;
 		surface->blitNShade(this, Surface::getX(), Surface::getY(), 0, false, baseColor);
 	}
 	this->unlock();
@@ -99,7 +107,7 @@ void MedikitView::mouseClick (Action *action, State *)
 	SurfaceSet *set = _game->getResourcePack()->getSurfaceSet("MEDIBITS.DAT");
 	int x = action->getRelativeXMouse() / action->getXScale();
 	int y = action->getRelativeYMouse() / action->getYScale();
-	for (int i = 0; i < set->getTotalFrames(); i++)
+	for (unsigned int i = 0; i < set->getTotalFrames(); i++)
 	{
 		Surface * surface = set->getFrame (i);
 		if (surface->getPixel(x, y))
@@ -118,5 +126,22 @@ void MedikitView::mouseClick (Action *action, State *)
 int MedikitView::getSelectedPart() const
 {
 	return _selectedPart;
+}
+
+/**
+ * Updates the selected body part.
+ * If there is a wounded body part, selects that.
+ * Otherwise does not change the selected part.
+ */
+void MedikitView::updateSelectedPart()
+{
+	for (int i = 0; i < 6; ++i)
+	{
+		if (_unit->getFatalWound(i))
+		{
+			_selectedPart = i;
+			break;
+		}
+	}
 }
 }

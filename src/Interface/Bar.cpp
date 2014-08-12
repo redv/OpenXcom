@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -30,7 +30,7 @@ namespace OpenXcom
  * @param x X position in pixels.
  * @param y Y position in pixels.
  */
-Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _scale(0), _max(0), _value(0), _value2(0), _invert(false), _secondOnTop(true)
+Bar::Bar(int width, int height, int x, int y) : Surface(width, height, x, y), _color(0), _color2(0), _borderColor(0), _scale(0), _max(0), _value(0), _value2(0), _invert(false), _secondOnTop(true)
 {
 
 }
@@ -124,7 +124,7 @@ double Bar::getMax() const
  */
 void Bar::setValue(double value)
 {
-	_value = value;
+	_value = (value < 0.0)? 0.0 : value;
 	_redraw = true;
 }
 
@@ -143,7 +143,7 @@ double Bar::getValue() const
  */
 void Bar::setValue2(double value)
 {
-	_value2 = value;
+	_value2 = (value < 0.0)? 0.0 : value;
 	_redraw = true;
 }
 
@@ -196,7 +196,10 @@ void Bar::draw()
 	}
 	else
 	{
-		drawRect(&square, _color + 4);
+		if (_borderColor)
+			drawRect(&square, _borderColor);
+		else
+			drawRect(&square, _color + 4);
 	}
 
 	square.y++;
@@ -241,4 +244,13 @@ void Bar::draw()
 	}
 }
 
+/**
+ * sets the border color for the bar.
+ * @param bc the color for the outline of the bar.
+ * @note will use base colour + 4 if none is defined here.
+ */
+void Bar::setBorderColor(Uint8 bc)
+{
+	_borderColor = bc;
+}
 }

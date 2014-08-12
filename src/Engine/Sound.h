@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -43,7 +43,9 @@ public:
 	/// Loads sound from a chunk of memory.
 	void load(const void *data, unsigned int size);
 	/// Plays the sound.
-	void play(int channel = -1) const;
+	void play(int channel = -1, int angle = 0, int distance = 0) const;
+	/// Stops all sounds.
+	static void stop();
 };
 
 }

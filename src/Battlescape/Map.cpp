@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013 OpenXcom Developers.
+ * Copyright 2010-2014 OpenXcom Developers.
  *
  * This file is part of OpenXcom.
  *
@@ -40,14 +40,18 @@
 #include "../Savegame/SavedBattleGame.h"
 #include "../Savegame/Tile.h"
 #include "../Savegame/BattleUnit.h"
+#include "../Savegame/BattleItem.h"
+#include "../Ruleset/Ruleset.h"
+#include "../Ruleset/RuleItem.h"
+#include "../Ruleset/RuleInterface.h"
 #include "../Ruleset/MapDataSet.h"
 #include "../Ruleset/MapData.h"
 #include "../Ruleset/Armor.h"
 #include "BattlescapeMessage.h"
 #include "../Savegame/SavedGame.h"
 #include "../Interface/Cursor.h"
-#include "../Engine/Options.h"
 #include "../Interface/NumberText.h"
+#include "../Interface/Text.h"
 
 
 /*
@@ -75,25 +79,37 @@ namespace OpenXcom
  * @param y Y position in pixels.
  * @param visibleMapHeight Current visible map height.
  */
-Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) : InteractiveSurface(width, height, x, y), _game(game), _arrow(0), _selectorX(0), _selectorY(0), _mouseX(0), _mouseY(0), _cursorType(CT_NORMAL), _cursorSize(1), _animFrame(0), _launch(false), _visibleMapHeight(visibleMapHeight), _unitDying(false)
+Map::Map(Game *game, int width, int height, int x, int y, int visibleMapHeight) : InteractiveSurface(width, height, x, y), _game(game), _arrow(0), _selectorX(0), _selectorY(0), _mouseX(0), _mouseY(0), _cursorType(CT_NORMAL), _cursorSize(1), _animFrame(0), _projectile(0), _projectileInFOV(false), _explosionInFOV(false), _launch(false), _visibleMapHeight(visibleMapHeight), _unitDying(false), _smoothingEngaged(false)
 {
-	_previewSetting = Options::getInt("battleNewPreviewPath");
-	if (Options::getBool("traceAI"))
+	_iconHeight = _game->getRuleset()->getInterface("battlescape")->getElement("icons")->h;
+	_iconWidth = _game->getRuleset()->getInterface("battlescape")->getElement("icons")->w;
+
+	_previewSetting = Options::battleNewPreviewPath;
+	_smoothCamera = Options::battleSmoothCamera;
+	if (Options::traceAI)
 	{
 		// turn everything on because we want to see the markers.
-		_previewSetting = 3;
+		_previewSetting = PATH_FULL;
 	}
 	_res = _game->getResourcePack();
 	_spriteWidth = _res->getSurfaceSet("BLANKS.PCK")->getFrame(0)->getWidth();
 	_spriteHeight = _res->getSurfaceSet("BLANKS.PCK")->getFrame(0)->getHeight();
 	_save = _game->getSavedGame()->getSavedBattle();
-	_message = new BattlescapeMessage(320, (visibleMapHeight < 200)? visibleMapHeight : 200, Screen::getDX(), Screen::getDY());
+	_message = new BattlescapeMessage(320, (visibleMapHeight < 200)? visibleMapHeight : 200, 0, 0);
+	_message->setX(_game->getScreen()->getDX());
+	_message->setY((visibleMapHeight - _message->getHeight()) / 2);
 	_camera = new Camera(_spriteWidth, _spriteHeight, _save->getMapSizeX(), _save->getMapSizeY(), _save->getMapSizeZ(), this, visibleMapHeight);
 	_scrollMouseTimer = new Timer(SCROLL_INTERVAL);
 	_scrollMouseTimer->onTimer((SurfaceHandler)&Map::scrollMouse);
 	_scrollKeyTimer = new Timer(SCROLL_INTERVAL);
 	_scrollKeyTimer->onTimer((SurfaceHandler)&Map::scrollKey);
 	_camera->setScrollTimer(_scrollMouseTimer, _scrollKeyTimer);
+	
+	_txtAccuracy = new Text(24, 9, 0, 0);
+	_txtAccuracy->setSmall();
+	_txtAccuracy->setPalette(_game->getScreen()->getPalette());
+	_txtAccuracy->setHighContrast(true);
+	_txtAccuracy->initText(_res->getFont("FONT_BIG"), _res->getFont("FONT_SMALL"), _game->getLanguage());
 }
 
 /**
@@ -106,6 +122,7 @@ Map::~Map()
 	delete _arrow;
 	delete _message;
 	delete _camera;
+	delete _txtAccuracy;
 }
 
 /**
@@ -114,7 +131,7 @@ Map::~Map()
 void Map::init()
 {
 	// load the tiny arrow into a surface
-	int f = Palette::blockOffset(1)+1; // yellow
+	int f = Palette::blockOffset(1); // yellow
 	int b = 15; // black
 	int pixels[81] = { 0, 0, b, b, b, b, b, 0, 0,
 					   0, 0, b, f, f, f, b, 0, 0,
@@ -155,33 +172,39 @@ void Map::draw()
 	{
 		return;
 	}
-	Surface::draw();
+
+	// normally we'd call for a Surface::draw();
+	// but we don't want to clear the background with colour 0, which is transparent (aka black)
+	// we use colour 15 because that actually corresponds to the colour we DO want in all variations of the xcom and tftd palettes.
+	_redraw = false;
+	clear(Palette::blockOffset(0)+15);
+
 	Tile *t;
 
-	projectileInFOV = _save->getDebugMode();
+	_projectileInFOV = _save->getDebugMode();
 	if (_projectile)
 	{
 		t = _save->getTile(Position(_projectile->getPosition(0).x/16, _projectile->getPosition(0).y/16, _projectile->getPosition(0).z/24));
 		if (_save->getSide() == FACTION_PLAYER || (t && t->getVisible()))
 		{
-			projectileInFOV = true;
+			_projectileInFOV = true;
 		}
 	}
-	explosionInFOV = _save->getDebugMode();
+	_explosionInFOV = _save->getDebugMode();
 	if (!_explosions.empty())
 	{
-		for (std::set<Explosion*>::iterator i = _explosions.begin(); i != _explosions.end(); ++i)
+		for (std::list<Explosion*>::iterator i = _explosions.begin(); i != _explosions.end(); ++i)
 		{
 			t = _save->getTile(Position((*i)->getPosition().x/16, (*i)->getPosition().y/16, (*i)->getPosition().z/24));
 			if (t && ((*i)->isBig() || t->getVisible()))
 			{
-				explosionInFOV = true;
+				_explosionInFOV = true;
 				break;
 			}
 		}
 	}
 
-	if ((_save->getSelectedUnit() && _save->getSelectedUnit()->getVisible()) || _unitDying || _save->getSelectedUnit() == 0 || _save->getDebugMode() || projectileInFOV || explosionInFOV)
+	if ((_save->getSelectedUnit() && _save->getSelectedUnit()->getVisible()) || _unitDying || _save->getSelectedUnit() == 0 || _save->getDebugMode() || _projectileInFOV || _explosionInFOV)
 	{
 		drawTerrain(this);
 	}
@@ -206,7 +229,7 @@ void Map::setPalette(SDL_Color *colors, int firstcolor, int ncolors)
 	}
 	_message->setPalette(colors, firstcolor, ncolors);
 	_message->setBackground(_res->getSurface("TAC00.SCR"));
-	_message->setFonts(_res->getFont("FONT_BIG"), _res->getFont("FONT_SMALL"));
+	_message->initText(_res->getFont("FONT_BIG"), _res->getFont("FONT_SMALL"), _game->getLanguage());
 	_message->setText(_game->getLanguage()->getString("STR_HIDDEN_MOVEMENT"));
 }
 
@@ -229,6 +252,7 @@ void Map::drawTerrain(Surface *surface)
 	BattleUnit *unit = 0;
 	bool invalid;
 	int tileShade, wallShade, tileColor;
+	static const int arrowBob[8] = {0,1,2,1,0,1,2,1};
 	
 	NumberText *_numWaypid = 0;
 
@@ -262,67 +286,85 @@ void Map::drawTerrain(Surface *surface)
 		// if the projectile is outside the viewport - center it back on it
 		_camera->convertVoxelToScreen(_projectile->getPosition(), &bulletPositionScreen);
 
-		if (projectileInFOV)
+		if (_projectileInFOV)
 		{
-			if (_launch)
+			Position newCam = _camera->getMapOffset();
+			if (newCam.z != bulletHighZ) //switch level
 			{
-				_launch = false;
-				if ((bulletPositionScreen.x < 0 || bulletPositionScreen.x > surface->getWidth() ||
-					bulletPositionScreen.y < 0 || bulletPositionScreen.y > _visibleMapHeight  )
-					&& projectileInFOV)
+				newCam.z = bulletHighZ;
+				if (_projectileInFOV)
 				{
-					_camera->centerOnPosition(Position(bulletLowX, bulletLowY, bulletHighZ), false);
+					_camera->setMapOffset(newCam);
+					_camera->convertVoxelToScreen(_projectile->getPosition(), &bulletPositionScreen);
+				}
+			}
+			if (_smoothCamera)
+			{
+				if (_launch)
+				{
+					_launch = false;
+					if ((bulletPositionScreen.x < 1 || bulletPositionScreen.x > surface->getWidth() - 1 ||
+						bulletPositionScreen.y < 1 || bulletPositionScreen.y > _visibleMapHeight - 1))
+					{
+						_camera->centerOnPosition(Position(bulletLowX, bulletLowY, bulletHighZ), false);
+						_camera->convertVoxelToScreen(_projectile->getPosition(), &bulletPositionScreen);
+					}
+				}
+				if (!_smoothingEngaged)
+				{
+					if (bulletPositionScreen.x < 1 || bulletPositionScreen.x > surface->getWidth() - 1 ||
+						bulletPositionScreen.y < 1 || bulletPositionScreen.y > _visibleMapHeight - 1)
+					{
+						_smoothingEngaged = true;
+					}
+				}
+				else
+				{
+					_camera->jumpXY(surface->getWidth() / 2 - bulletPositionScreen.x, _visibleMapHeight / 2 - bulletPositionScreen.y);
 				}
 			}
 			else
 			{
-				Position newCam = _camera->getMapOffset();
-				if (newCam.z != bulletHighZ) //switch level
-				{
-					newCam.z = bulletHighZ;
-					if (projectileInFOV)
-					{
-						_camera->setMapOffset(newCam);
-						_camera->convertVoxelToScreen(_projectile->getPosition(), &bulletPositionScreen);
-					}
-				}
-
 				bool enough;
 				do
 				{
 					enough = true;
-					if (bulletPositionScreen.x < 8)
+					if (bulletPositionScreen.x < 0)
 					{
-						_camera->jumpXY(+surface->getWidth()-16, _visibleMapHeight/2 - bulletPositionScreen.y);
+						_camera->jumpXY(+surface->getWidth(), 0);
 						enough = false;
 					}
-					else if (bulletPositionScreen.x > surface->getWidth()-8)
+					else if (bulletPositionScreen.x > surface->getWidth())
 					{
-						_camera->jumpXY(-surface->getWidth()+16, _visibleMapHeight/2 - bulletPositionScreen.y);
+						_camera->jumpXY(-surface->getWidth(), 0);
 						enough = false;
 					}
-					else if (bulletPositionScreen.y < 8)
+					else if (bulletPositionScreen.y < 0)
 					{
-						_camera->jumpXY(surface->getWidth()/2 - bulletPositionScreen.x, +_visibleMapHeight-20);
+						_camera->jumpXY(0, +_visibleMapHeight);
 						enough = false;
 					}
-					else if (bulletPositionScreen.y > _visibleMapHeight-8)
+					else if (bulletPositionScreen.y > _visibleMapHeight)
 					{
-						_camera->jumpXY(surface->getWidth()/2 - bulletPositionScreen.x, -_visibleMapHeight+20);
+						_camera->jumpXY(0, -_visibleMapHeight);
 						enough = false;
 					}
 					_camera->convertVoxelToScreen(_projectile->getPosition(), &bulletPositionScreen);
-				} while (!enough);
-
+				}
+				while (!enough);
 			}
 		}
+	}
+	else
+	{
+		_smoothingEngaged = false;
 	}
 
 	// get corner map coordinates to give rough boundaries in which tiles to redraw are
 	_camera->convertScreenToMap(0, 0, &beginX, &dummy);
 	_camera->convertScreenToMap(surface->getWidth(), 0, &dummy, &beginY);
-	_camera->convertScreenToMap(surface->getWidth(), surface->getHeight(), &endX, &dummy);
-	_camera->convertScreenToMap(0, surface->getHeight(), &dummy, &endY);
+	_camera->convertScreenToMap(surface->getWidth() + _spriteWidth, surface->getHeight() + _spriteHeight, &endX, &dummy);
+	_camera->convertScreenToMap(0, surface->getHeight() + _spriteHeight, &dummy, &endY);
 	beginY -= (_camera->getViewLevel() * 2);
 	beginX -= (_camera->getViewLevel() * 2);
 	if (beginX < 0)
@@ -332,7 +374,7 @@ void Map::drawTerrain(Surface *surface)
 
 	bool pathfinderTurnedOn = _save->getPathfinding()->isPathPreviewed();
 
-	if (!_waypoints.empty() || (pathfinderTurnedOn && _previewSetting >= 2))
+	if (!_waypoints.empty() || (pathfinderTurnedOn && (_previewSetting & PATH_TU_COST)))
 	{
 		_numWaypid = new NumberText(15, 15, 20, 30);
 		_numWaypid->setPalette(getPalette());
@@ -405,6 +447,231 @@ void Map::drawTerrain(Surface *surface)
 						}
 					}
 
+					// special handling for a moving unit.
+					if (mapPosition.y > 0)
+					{
+						Tile *tileNorth = _save->getTile(mapPosition - Position(0,1,0));
+						BattleUnit *bu = tileNorth->getUnit();
+						int tileNorthShade, tileTwoNorthShade, tileWestShade, tileNorthWestShade, tileSouthWestShade;
+						if (tileNorth->isDiscovered(2))
+						{
+							tileNorthShade = tileNorth->getShade();
+						}
+						else
+						{
+							tileNorthShade = 16;
+							bu = 0;
+						}
+
+						/*
+						 * Phase I: rerender the unit to make sure they don't get drawn over any walls or under any tiles
+						 */
+						if (bu && bu->getVisible() && bu->getStatus() == STATUS_WALKING && tile->getTerrainLevel() >= tileNorth->getTerrainLevel())
+						{
+							Position tileOffset = Position(16,-8,0);
+							// the part is 0 for small units, large units have parts 1,2 & 3 depending on the relative x/y position of this tile vs the actual unit position.
+							int part = 0;
+							part += tileNorth->getPosition().x - bu->getPosition().x;
+							part += (tileNorth->getPosition().y - bu->getPosition().y)*2;
+							tmpSurface = bu->getCache(&invalid, part);
+							if (tmpSurface)
+							{
+								// draw unit
+								Position offset;
+								calculateWalkingOffset(bu, &offset);
+								tmpSurface->blitNShade(surface, screenPosition.x + offset.x + tileOffset.x, screenPosition.y + offset.y  + tileOffset.y, tileNorthShade);
+								// draw fire
+								if (bu->getFire() > 0)
+								{
+									frameNumber = 4 + (_animFrame / 2);
+									tmpSurface = _res->getSurfaceSet("SMOKE.PCK")->getFrame(frameNumber);
+									tmpSurface->blitNShade(surface, screenPosition.x + offset.x + tileOffset.x, screenPosition.y + offset.y + tileOffset.y, 0);
+								}
+							}
+
+							/*
+							 * Phase II: rerender any east wall type objects in the tile to the north of the unit
+							 * only applies to movement in the north/south direction.
+							 */
+							if ((bu->getDirection() == 0 || bu->getDirection() == 4) && mapPosition.y >= 2)
+							{
+								Tile *tileTwoNorth = _save->getTile(mapPosition - Position(0,2,0));
+								if (tileTwoNorth->isDiscovered(2))
+								{
+									tileTwoNorthShade = tileTwoNorth->getShade();
+								}
+								else
+								{
+									tileTwoNorthShade = 16;
+								}
+								tmpSurface = tileTwoNorth->getSprite(MapData::O_OBJECT);
+								if (tmpSurface && tileTwoNorth->getMapData(MapData::O_OBJECT)->getBigWall() == 6)
+								{
+									tmpSurface->blitNShade(surface, screenPosition.x + tileOffset.x*2, screenPosition.y - tileTwoNorth->getMapData(MapData::O_OBJECT)->getYOffset() + tileOffset.y*2, tileTwoNorthShade);
+								}
+							}
+
+							/*
+							 * Phase III: render any south wall type objects in the tile to the northWest
+							 */
+							if (mapPosition.x > 0)
+							{
+								Tile *tileNorthWest = _save->getTile(mapPosition - Position(1,1,0));
+								if (tileNorthWest->isDiscovered(2))
+								{
+									tileNorthWestShade = tileNorthWest->getShade();
+								}
+								else
+								{
+									tileNorthWestShade = 16;
+								}
+								tmpSurface = tileNorthWest->getSprite(MapData::O_OBJECT);
+								if (tmpSurface && tileNorthWest->getMapData(MapData::O_OBJECT)->getBigWall() == 7)
+								{
+									tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tileNorthWest->getMapData(MapData::O_OBJECT)->getYOffset() + tileOffset.y*2, tileNorthWestShade);
+								}
+							}
+
+							/*
+							 * Phase IV: render any south or east wall type objects in the tile to the north
+							 */
+							if (tileNorth->getMapData(MapData::O_OBJECT) && tileNorth->getMapData(MapData::O_OBJECT)->getBigWall() >= 6)
+							{
+								tmpSurface = tileNorth->getSprite(MapData::O_OBJECT);
+								if (tmpSurface)
+									tmpSurface->blitNShade(surface, screenPosition.x + tileOffset.x, screenPosition.y - tileNorth->getMapData(MapData::O_OBJECT)->getYOffset() + tileOffset.y, tileNorthShade);
+							}
+							if (mapPosition.x > 0)
+							{
+								/*
+								 * Phase V: re-render objects in the tile to the south west
+								 * only render half so it won't overlap other areas that are already drawn
+								 * and only apply this to movement in a north easterly or south westerly direction.
+								 */
+								if ( (bu->getDirection() == 1 || bu->getDirection() == 5) && mapPosition.y < endY-1)
+								{
+									Tile *tileSouthWest = _save->getTile(mapPosition + Position(-1, 1, 0));
+									if (tileSouthWest->isDiscovered(2))
+									{
+										tileSouthWestShade = tileSouthWest->getShade();
+									}
+									else
+									{
+										tileSouthWestShade = 16;
+									}
+									tmpSurface = tileSouthWest->getSprite(MapData::O_OBJECT);
+									if (tmpSurface)
+									{
+											tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x * 2, screenPosition.y - tileSouthWest->getMapData(MapData::O_OBJECT)->getYOffset(), tileSouthWestShade, true);
+									}
+								}
+
+								/*
+								 * Phase VI: we need to re-render everything in the tile to the west.
+								 */
+								Tile *tileWest = _save->getTile(mapPosition - Position(1,0,0));
+								BattleUnit *westUnit = tileWest->getUnit();
+								if (tileWest->isDiscovered(2))
+								{
+									tileWestShade = tileWest->getShade();
+								}
+								else
+								{
+									tileWestShade = 16;
+									westUnit = 0;
+								}
+								tmpSurface = tileWest->getSprite(MapData::O_WESTWALL);
+								if (tmpSurface && bu != unit)
+								{
+									if ((tileWest->getMapData(MapData::O_WESTWALL)->isDoor() || tileWest->getMapData(MapData::O_WESTWALL)->isUFODoor())
+											&& tileWest->isDiscovered(0))
+										wallShade = tileWest->getShade();
+									else
+										wallShade = tileWestShade;
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(MapData::O_WESTWALL)->getYOffset() + tileOffset.y, wallShade, true);
+								}
+								tmpSurface = tileWest->getSprite(MapData::O_NORTHWALL);
+								if (tmpSurface)
+								{
+									if ((tileWest->getMapData(MapData::O_NORTHWALL)->isDoor() || tileWest->getMapData(MapData::O_NORTHWALL)->isUFODoor())
+											&& tileWest->isDiscovered(1))
+										wallShade = tileWest->getShade();
+									else
+										wallShade = tileWestShade;
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(MapData::O_NORTHWALL)->getYOffset() + tileOffset.y, wallShade, true);
+								}
+								tmpSurface = tileWest->getSprite(MapData::O_OBJECT);
+								if (tmpSurface && tileWest->getMapData(MapData::O_OBJECT)->getBigWall() < 6 && tileWest->getMapData(MapData::O_OBJECT)->getBigWall() != 3)
+								{
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(MapData::O_OBJECT)->getYOffset() + tileOffset.y, tileWestShade, true);
+									// if the object in the tile to the west is a diagonal big wall, we need to cover up the black triangle at the bottom
+									if (tileWest->getMapData(MapData::O_OBJECT)->getBigWall() == 2)
+									{
+										tmpSurface = tile->getSprite(MapData::O_FLOOR);
+										if (tmpSurface)
+											tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(MapData::O_FLOOR)->getYOffset(), tileShade);
+									}
+								}
+								// draw an item on top of the floor (if any)
+								int sprite = tileWest->getTopItemSprite();
+								if (sprite != -1)
+								{
+									tmpSurface = _res->getSurfaceSet("FLOOROB.PCK")->getFrame(sprite);
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y + tileWest->getTerrainLevel() + tileOffset.y, tileWestShade, true);
+								}
+								// Draw soldier
+								if (westUnit && westUnit->getStatus() != STATUS_WALKING && (!tileWest->getMapData(MapData::O_OBJECT) || tileWest->getMapData(MapData::O_OBJECT)->getBigWall() < 6) && (westUnit->getVisible() || _save->getDebugMode()))
+								{
+									// the part is 0 for small units, large units have parts 1,2 & 3 depending on the relative x/y position of this tile vs the actual unit position.
+									int part = 0;
+									part += tileWest->getPosition().x - westUnit->getPosition().x;
+									part += (tileWest->getPosition().y - westUnit->getPosition().y)*2;
+									tmpSurface = westUnit->getCache(&invalid, part);
+									if (tmpSurface)
+									{
+										tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y + tileOffset.y + getTerrainLevel(westUnit->getPosition(), westUnit->getArmor()->getSize()), tileWestShade, true);
+										if (westUnit->getFire() > 0)
+										{
+											frameNumber = 4 + (_animFrame / 2);
+											tmpSurface = _res->getSurfaceSet("SMOKE.PCK")->getFrame(frameNumber);
+											tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y + tileOffset.y + getTerrainLevel(westUnit->getPosition(), westUnit->getArmor()->getSize()), 0, true);
+										}
+									}
+								}
+
+								// Draw smoke/fire
+								if (tileWest->getSmoke() && tileWest->isDiscovered(2))
+								{
+									frameNumber = 0;
+									int shade = 0;
+									if (!tileWest->getFire())
+									{
+										frameNumber = 8 + int(floor((tileWest->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+										shade = tileWestShade;
+									}
+
+									if ((_animFrame / 2) + tileWest->getAnimationOffset() > 3)
+									{
+										frameNumber += ((_animFrame / 2) + tileWest->getAnimationOffset() - 4);
+									}
+									else
+									{
+										frameNumber += (_animFrame / 2) + tileWest->getAnimationOffset();
+									}
+									tmpSurface = _res->getSurfaceSet("SMOKE.PCK")->getFrame(frameNumber);
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y + tileOffset.y, shade, true);
+								}
+								// Draw object
+								if (tileWest->getMapData(MapData::O_OBJECT) && tileWest->getMapData(MapData::O_OBJECT)->getBigWall() >= 6)
+								{
+									tmpSurface = tileWest->getSprite(MapData::O_OBJECT);
+									tmpSurface->blitNShade(surface, screenPosition.x - tileOffset.x, screenPosition.y - tileWest->getMapData(MapData::O_OBJECT)->getYOffset() + tileOffset.y, tileWestShade, true);
+								}
+							}
+						}
+					}
+
+
 					// Draw walls
 					if (!tile->isVoid())
 					{
@@ -455,7 +722,7 @@ void Map::drawTerrain(Surface *surface)
 					}
 
 					// check if we got bullet && it is in Field Of View
-					if (_projectile && projectileInFOV)
+					if (_projectile && _projectileInFOV)
 					{
 						tmpSurface = 0;
 						if (_projectile->getItem())
@@ -495,7 +762,17 @@ void Map::drawTerrain(Surface *surface)
 							// draw bullet on the correct tile
 							if (itX >= bulletLowX && itX <= bulletHighX && itY >= bulletLowY && itY <= bulletHighY)
 							{
-								for (int i = 0; i < BULLET_SPRITES; ++i)
+								int begin = 0;
+								int end = BULLET_SPRITES;
+								int direction = 1;
+								if (_projectile->isReversed())
+								{
+									begin = BULLET_SPRITES - 1;
+									end = -1;
+									direction = -1;
+								}
+
+								for (int i = begin; i != end; i += direction)
 								{
 									tmpSurface = _res->getSurfaceSet("Projectiles")->getFrame(_projectile->getParticle(i));
 									if (tmpSurface)
@@ -590,9 +867,11 @@ void Map::drawTerrain(Surface *surface)
 					if (tile->getSmoke() && tile->isDiscovered(2))
 					{
 						frameNumber = 0;
+						int shade = 0;
 						if (!tile->getFire())
 						{
 							frameNumber = 8 + int(floor((tile->getSmoke() / 6.0) - 0.1)); // see http://www.ufopaedia.org/images/c/cb/Smoke.gif
+							shade = tileShade;
 						}
 
 						if ((_animFrame / 2) + tile->getAnimationOffset() > 3)
@@ -604,9 +883,26 @@ void Map::drawTerrain(Surface *surface)
 							frameNumber += (_animFrame / 2) + tile->getAnimationOffset();
 						}
 						tmpSurface = _res->getSurfaceSet("SMOKE.PCK")->getFrame(frameNumber);
-						tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
+						tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, shade);
 					}
 
+					// Draw Path Preview
+					if (tile->getPreview() != -1 && tile->isDiscovered(0) && (_previewSetting & PATH_ARROWS))
+					{
+						if (itZ > 0 && tile->hasNoFloor(tileBelow))
+						{
+							tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(11);
+							if (tmpSurface)
+							{
+								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y+2, 0, false, tile->getMarkerColor());
+							}
+						}
+						tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(tile->getPreview());
+						if (tmpSurface)
+						{
+							tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y + tile->getTerrainLevel(), 0, false, tileColor);
+						}
+					}
 					if (!tile->isVoid())
 					{
 						// Draw object
@@ -615,23 +911,6 @@ void Map::drawTerrain(Surface *surface)
 							tmpSurface = tile->getSprite(MapData::O_OBJECT);
 							if (tmpSurface)
 								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - tile->getMapData(MapData::O_OBJECT)->getYOffset(), tileShade, false);
-						}
-					}
-					// Draw Path Preview
-					if (tile->getPreview() != -1 && tile->isDiscovered(0) && _previewSetting % 2)
-					{
-						if (itZ > 0 && tile->hasNoFloor(tileBelow))
-						{
-							tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(22);
-							if (tmpSurface)
-							{
-								tmpSurface->blitNShade(surface, screenPosition.x - 16, screenPosition.y - 20, 0, false, tile->getMarkerColor());
-							}
-						}
-						tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(tile->getPreview());
-						if (tmpSurface)
-						{
-							tmpSurface->blitNShade(surface, screenPosition.x - 16, screenPosition.y - (20 - tile->getTerrainLevel()), 0, false, tileColor);
 						}
 					}
 					// Draw cursor front
@@ -645,7 +924,8 @@ void Map::drawTerrain(Surface *surface)
 									frameNumber = 3 + (_animFrame % 2); // yellow box
 								else
 									frameNumber = 3; // red box
-							}else
+							}
+							else
 							{
 								if (unit && (unit->getVisible() || _save->getDebugMode()))
 									frameNumber = 7 + (_animFrame / 2); // yellow animated crosshairs
@@ -654,6 +934,60 @@ void Map::drawTerrain(Surface *surface)
 							}
 							tmpSurface = _res->getSurfaceSet("CURSOR.PCK")->getFrame(frameNumber);
 							tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
+
+							// UFO extender accuracy: display adjusted accuracy value on crosshair in real-time.
+							if (_cursorType == CT_AIM && Options::battleUFOExtenderAccuracy)
+							{
+								BattleAction *action = _save->getBattleGame()->getCurrentAction();
+								RuleItem *weapon = action->weapon->getRules();
+								std::ostringstream ss;
+								int accuracy = action->actor->getFiringAccuracy(action->type, action->weapon);
+								int distance = _save->getTileEngine()->distance(Position (itX, itY,itZ), action->actor->getPosition());
+								int upperLimit = 200;
+								int lowerLimit = weapon->getMinRange();
+								switch (action->type)
+								{
+								case BA_AIMEDSHOT:
+									upperLimit = weapon->getAimRange();
+									break;
+								case BA_SNAPSHOT:
+									upperLimit = weapon->getSnapRange();
+									break;
+								case BA_AUTOSHOT:
+									upperLimit = weapon->getAutoRange();
+									break;
+								default:
+									break;
+								}
+								// at this point, let's assume the shot is adjusted and set the text amber.
+								_txtAccuracy->setColor(Palette::blockOffset(1)-1);
+
+								if (distance > upperLimit)
+								{
+									accuracy -= (distance - upperLimit) * weapon->getDropoff();
+								}
+								else if (distance < lowerLimit)
+								{
+									accuracy -= (lowerLimit - distance) * weapon->getDropoff();
+								}
+								else
+								{
+									// no adjustment made? set it to green.
+									_txtAccuracy->setColor(Palette::blockOffset(4)-1);
+								}
+
+								// zero accuracy or out of range: set it red.
+								if (accuracy <= 0 || distance > weapon->getMaxRange())
+								{
+									accuracy = 0;
+									_txtAccuracy->setColor(Palette::blockOffset(2)-1);
+								}
+								ss << accuracy;
+								ss << "%";
+								_txtAccuracy->setText(Language::utf8ToWstr(ss.str().c_str()).c_str());
+								_txtAccuracy->draw();
+								_txtAccuracy->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
+							}
 						}
 						else if (_camera->getViewLevel() > itZ)
 						{
@@ -683,14 +1017,18 @@ void Map::drawTerrain(Surface *surface)
 								tmpSurface = _res->getSurfaceSet("CURSOR.PCK")->getFrame(7);
 								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, 0);
 							}
-							_numWaypid->setValue(waypid);
-							_numWaypid->draw();
-							_numWaypid->blitNShade(surface, screenPosition.x + waypXOff, screenPosition.y + waypYOff, 0);
-							waypXOff += waypid > 9 ? 8 : 6;
-							if (waypXOff >= 26)
+							if (_save->getBattleGame()->getCurrentAction()->type == BA_LAUNCH)
 							{
-								waypXOff = 2;
-								waypYOff += 8;
+								_numWaypid->setValue(waypid);
+								_numWaypid->draw();
+								_numWaypid->blitNShade(surface, screenPosition.x + waypXOff, screenPosition.y + waypYOff, 0);
+
+								waypXOff += waypid > 9 ? 8 : 6;
+								if (waypXOff >= 26)
+								{
+									waypXOff = 2;
+									waypYOff += 8;
+								}
 							}
 						}
 						waypid++;
@@ -701,6 +1039,10 @@ void Map::drawTerrain(Surface *surface)
 	}
 	if (pathfinderTurnedOn)
 	{
+		if (_numWaypid)
+		{
+			_numWaypid->setBordered(true); // give it a border for the pathfinding display, makes it more visible on snow, etc.
+		}
 		for (int itZ = beginZ; itZ <= endZ; itZ++)
 		{
 			for (int itX = beginX; itX <= endX; itX++)
@@ -719,37 +1061,54 @@ void Map::drawTerrain(Surface *surface)
 						Tile *tileBelow = _save->getTile(mapPosition - Position(0,0,1));
 						if (!tile || !tile->isDiscovered(0) || tile->getPreview() == -1)
 							continue;
-						int adjustment = 20 - tile->getTerrainLevel();
-						if (_previewSetting % 2)
+						int adjustment = -tile->getTerrainLevel();
+						if (_previewSetting & PATH_ARROWS)
 						{
 							if (itZ > 0 && tile->hasNoFloor(tileBelow))
 							{
 								tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(23);
 								if (tmpSurface)
 								{
-									tmpSurface->blitNShade(surface, screenPosition.x - 16, screenPosition.y - 20, 0, false, tile->getMarkerColor());
+									tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y+2, 0, false, tile->getMarkerColor());
 								}
 							}
-							int overlay = tile->getPreview() + 11;
+							int overlay = tile->getPreview() + 12;
 							tmpSurface = _res->getSurfaceSet("Pathfinding")->getFrame(overlay);
 							if (tmpSurface)
 							{
-								tmpSurface->blitNShade(surface, screenPosition.x - 16, screenPosition.y - adjustment, 0, false, tile->getMarkerColor());
+								tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y - adjustment, 0, false, tile->getMarkerColor());
 							}
 						}
 
-						if (_previewSetting >= 2)
+						if (_previewSetting & PATH_TU_COST && tile->getTUMarker() > -1)
 						{
-							int tuMarker = std::max(0, tile->getTUMarker());
-
-							_numWaypid->setValue(tuMarker);
+							int off = tile->getTUMarker() > 9 ? 5 : 3;
+							if (_save->getSelectedUnit() && _save->getSelectedUnit()->getArmor()->getSize() > 1)
+							{
+								adjustment += 1;
+								if (!(_previewSetting & PATH_ARROWS))
+								{
+									adjustment += 7;
+								}
+							}
+							_numWaypid->setValue(tile->getTUMarker());
 							_numWaypid->draw();
-							int off = tile->getTUMarker() > 9 ? 4 : 2;
-							_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (50-adjustment), 0);
+							if ( !(_previewSetting & PATH_ARROWS) )
+							{
+								_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (29-adjustment), 0, false, tile->getMarkerColor() );
+							}
+							else
+							{
+								_numWaypid->blitNShade(surface, screenPosition.x + 16 - off, screenPosition.y + (22-adjustment), 0);
+							}
 						}
 					}
 				}
 			}
+		}
+		if (_numWaypid)
+		{
+			_numWaypid->setBordered(false); // make sure we remove the border in case it's being used for missile waypoints.
 		}
 	}
 	unit = (BattleUnit*)_save->getSelectedUnit();
@@ -763,17 +1122,22 @@ void Map::drawTerrain(Surface *surface)
 		{
 			offset.y += 4;
 		}
+		offset.y += 24 - unit->getHeight();
+		if (unit->isKneeled())
+		{
+			offset.y -= 2;
+		}
 		if (this->getCursorType() != CT_NONE)
 		{
-			_arrow->blitNShade(surface, screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2), screenPosition.y + offset.y - _arrow->getHeight() + 4*sin((_animFrame*6.28)/8), 0);
+			_arrow->blitNShade(surface, screenPosition.x + offset.x + (_spriteWidth / 2) - (_arrow->getWidth() / 2), screenPosition.y + offset.y - _arrow->getHeight() + arrowBob[_animFrame], 0);
 		}
 	}
 	delete _numWaypid;
 
 	// check if we got big explosions
-	if (explosionInFOV)
+	if (_explosionInFOV)
 	{
-		for (std::set<Explosion*>::const_iterator i = _explosions.begin(); i != _explosions.end(); ++i)
+		for (std::list<Explosion*>::const_iterator i = _explosions.begin(); i != _explosions.end(); ++i)
 		{
 			_camera->convertVoxelToScreen((*i)->getPosition(), &bulletPositionScreen);
 			if ((*i)->isBig())
@@ -787,7 +1151,7 @@ void Map::drawTerrain(Surface *surface)
 			else if ((*i)->isHit())
 			{
 				tmpSurface = _res->getSurfaceSet("HIT.PCK")->getFrame((*i)->getCurrentFrame());
-				tmpSurface->blitNShade(surface, bulletPositionScreen.x - 15, bulletPositionScreen.y - 15, 0);
+				tmpSurface->blitNShade(surface, bulletPositionScreen.x - 15, bulletPositionScreen.y - 25, 0);
 			}
 			else
 			{
@@ -867,7 +1231,6 @@ void Map::setSelectorPosition(int mx, int my)
 {
 	int oldX = _selectorX, oldY = _selectorY;
 
-	if (!mx && !my) return; // cursor is offscreen
 	_camera->convertScreenToMap(mx, my + _spriteHeight/4, &_selectorX, &_selectorY);
 
 	if (oldX != _selectorX || oldY != _selectorY)
@@ -894,9 +1257,7 @@ void Map::animate(bool redraw)
 	// animate certain units (large flying units have a propultion animation)
 	for (std::vector<BattleUnit*>::iterator i = _save->getUnits()->begin(); i != _save->getUnits()->end(); ++i)
 	{
-		if (((*i)->getArmor()->getSize() > 1 && (*i)->getArmor()->getMovementType() == MT_FLY) 
-			|| (*i)->getArmor()->getDrawingRoutine() == 8
-			|| (*i)->getArmor()->getDrawingRoutine() == 9)
+		if ((*i)->getArmor()->getConstantAnimation())
 		{
 			(*i)->setCache(0);
 			cacheUnit(*i);
@@ -934,12 +1295,15 @@ void Map::calculateWalkingOffset(BattleUnit *unit, Position *offset)
 
 	if (size > 1)
 	{
-		if (dir < 1 || dir > 4)
+		if (dir < 1 || dir > 5)
 			midphase = endphase;
+		else if (dir == 5)
+			midphase = 12;
+		else if (dir == 1)
+			midphase = 5;
 		else
 			midphase = 1;
 	}
-
 	if (unit->getVerticalDirection())
 	{
 		midphase = 4;
@@ -999,6 +1363,14 @@ void Map::calculateWalkingOffset(BattleUnit *unit, Position *offset)
 	else
 	{
 		offset->y += getTerrainLevel(unit->getPosition(), size);
+
+		if (unit->getArmor()->getCanHoldWeapon())
+		{
+			if (unit->getStatus() == STATUS_AIMING)
+			{
+				offset->x = -16;
+			}
+		}
 	}
 
 }
@@ -1067,7 +1439,7 @@ void Map::cacheUnits()
  */
 void Map::cacheUnit(BattleUnit *unit)
 {
-	UnitSprite *unitSprite = new UnitSprite(_spriteWidth, _spriteHeight, 0, 0);
+	UnitSprite *unitSprite = new UnitSprite(unit->getStatus() == STATUS_AIMING ? _spriteWidth * 2: _spriteWidth, _spriteHeight, 0, 0, _save->getDepth() != 0);
 	unitSprite->setPalette(this->getPalette());
 	bool invalid, dummy;
 	int numOfParts = unit->getArmor()->getSize() == 1?1:unit->getArmor()->getSize()*2;
@@ -1084,6 +1456,9 @@ void Map::cacheUnit(BattleUnit *unit)
 				cache = new Surface(_spriteWidth, _spriteHeight);
 				cache->setPalette(this->getPalette());
 			}
+
+			cache->setWidth(unitSprite->getWidth());
+
 			unitSprite->setBattleUnit(unit, i);
 
 			BattleItem *rhandItem = unit->getItem("STR_RIGHT_HAND");
@@ -1120,7 +1495,10 @@ void Map::cacheUnit(BattleUnit *unit)
 void Map::setProjectile(Projectile *projectile)
 {
 	_projectile = projectile;
-	_launch = true;
+	if (projectile && Options::battleSmoothCamera)
+	{
+		_launch = true;
+	}
 }
 
 /**
@@ -1136,7 +1514,7 @@ Projectile *Map::getProjectile() const
  * Gets a list of explosion sprites on the map.
  * @return A list of explosion sprites.
  */
-std::set<Explosion*> *Map::getExplosions()
+std::list<Explosion*> *Map::getExplosions()
 {
 	return &_explosions;
 }
@@ -1202,5 +1580,51 @@ void Map::refreshSelectorPosition()
 	setSelectorPosition(_mouseX, _mouseY);
 }
 
+/**
+ * Special handling for setting the height of the map viewport.
+ * @param height the new base screen height.
+ */
+void Map::setHeight(int height)
+{
+	Surface::setHeight(height);
+	_visibleMapHeight = height - _iconHeight;
+	_message->setHeight((_visibleMapHeight < 200)? _visibleMapHeight : 200);
+	_message->setY((_visibleMapHeight - _message->getHeight()) / 2);
+}
+/**
+ * Special handling for setting the width of the map viewport.
+ * @param width the new base screen width.
+ */
+void Map::setWidth(int width)
+{
+	int dX = width - getWidth();
+	Surface::setWidth(width);
+	_message->setX(_message->getX() + dX / 2);
+}
+
+/**
+ * Get the hidden movement screen's vertical position.
+ * @return the vertical position of the hidden movement window.
+ */
+const int Map::getMessageY()
+{
+	return _message->getY();
+}
+
+/**
+ * Get the icon height.
+ */
+const int Map::getIconHeight()
+{
+	return _iconWidth;
+}
+
+/**
+ * Get the icon width.
+ */
+const int Map::getIconWidth()
+{
+	return _iconHeight;
+}
 
 }

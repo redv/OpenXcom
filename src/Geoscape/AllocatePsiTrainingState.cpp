@@ -53,7 +53,10 @@ AllocatePsiTrainingState::AllocatePsiTrainingState(Base *base) : _sel(0)
 	_txtPsiStrength = new Text(80, 20, 124, 32);
 	_txtPsiSkill = new Text(80, 20, 188, 32);
 	_txtTraining = new Text(48, 20, 270, 32);
-	_btnOk = new TextButton(160, 14, 80, 174);
+	if (Options::anytimePsiTraining)
+		_btnOk = new TextButton(288, 16, 16, 176);
+	else
+		_btnOk = new TextButton(160, 14, 80, 174);
 	_lstSoldiers = new TextList(290, 112, 8, 52);
 
 	// Set palette

@@ -998,11 +998,13 @@ void GeoscapeState::time10Minutes()
 					double range = ((*j)->getRules()->getSightRange() * (1 / 60.0) * (M_PI / 180));
 					for (std::vector<AlienBase*>::iterator b = _game->getSavedGame()->getAlienBases()->begin(); b != _game->getSavedGame()->getAlienBases()->end(); b++)
 					{
-						if ((*j)->getDistance(*b) <= range)
+						if (!(*b)->isDiscovered())
 						{
-							if (RNG::percent(50-((*j)->getDistance(*b) / range) * 50) && !(*b)->isDiscovered())
+							double distance = (*j)->getDistance(*b);
+							if (distance <= range && RNG::percent(50 - (distance / range) * 50))
 							{
 								(*b)->setDiscovered(true);
+								(*b)->setId(_game->getSavedGame()->getId("STR_ALIEN_BASE"));
 							}
 						}
 					}
@@ -1692,6 +1694,7 @@ void GeoscapeState::time1Month()
 			if (!(*b)->isDiscovered())
 			{
 				(*b)->setDiscovered(true);
+				(*b)->setId(_game->getSavedGame()->getId("STR_ALIEN_BASE"));
 				popup(new AlienBaseState(*b, this));
 				break;
 			}

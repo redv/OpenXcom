@@ -982,7 +982,7 @@ void Map::drawTerrain(Surface *surface)
 					// Draw a box around scanned unit
 					if (Options::battleAdvancedScanner && unit && unit->getScannedTurn() == _save->getTurn() &&
 						_save->getSide() == FACTION_PLAYER && !unit->getVisible() &&
-						!(_selectorX == itX && _selectorY == itY && _camera->getViewLevel() == itZ))
+						!(_selectorX == itX && _selectorY == itY && _camera->getViewLevel() >= itZ))
 					{
 							tmpSurface = _res->getSurfaceSet("CURSOR.PCK")->getFrame(0);	// back of red box
 							tmpSurface->blitNShade(surface, screenPosition.x, screenPosition.y, 0);

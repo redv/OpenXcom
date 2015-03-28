@@ -1091,7 +1091,7 @@ void DogfightState::update()
 					_ufo->setAltitude("STR_GROUND");
 					if (_ufo->getCrashId() == 0)
 					{
-						_ufo->setCrashId(_game->getSavedGame()->getId("STR_CRASH_SITE"));
+						_ufo->setCrashId(_ufo->getId());
 					}
 				}
 			}

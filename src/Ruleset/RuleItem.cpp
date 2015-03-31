@@ -221,7 +221,7 @@ void statsModiferWrite(std::vector<std::pair<BonusStatFunc, float> >& mod, const
 			{
 				if (dd.IsScalar())
 				{
-					mod.push_back(std::make_pair(statDataMap[i].func.power[0], dd.as<float>()));
+					mod.push_back(std::pair<BonusStatFunc, float>(statDataMap[i].func.power[0], dd.as<float>()));
 				}
 				else
 				{
@@ -230,7 +230,7 @@ void statsModiferWrite(std::vector<std::pair<BonusStatFunc, float> >& mod, const
 						float val = dd[j].as<float>();
 						if (!AreSame(val, 0.0f))
 						{
-							mod.push_back(std::make_pair(statDataMap[i].func.power[j], val));
+							mod.push_back(std::pair<BonusStatFunc, float>(statDataMap[i].func.power[j], val));
 						}
 					}
 				}
@@ -258,9 +258,9 @@ RuleItem::RuleItem(const std::string &type) :
 	_maxRange(200), _aimRange(200), _snapRange(15), _autoRange(7), _minRange(0), _dropoff(2), _bulletSpeed(0), _explosionSpeed(0), _autoShots(3), _shotgunPellets(0),
 	_LOSRequired(false), _underwaterOnly(false), _psiReqiured(false), _meleeSound(39), _meleePower(0), _meleeAnimation(0), _meleeHitSound(-1), _specialType(-1), _vaporColor(-1), _vaporDensity(0), _vaporProbability(15)
 {
-	_accuracyMulti.push_back(std::make_pair(&statUs1<&UnitStats::firing>, 1.0f));
-	_meleeMulti.push_back(std::make_pair(&statUs1<&UnitStats::melee>, 1.0f));
-	_throwMulti.push_back(std::make_pair(&statUs1<&UnitStats::throwing>, 1.0f));
+	_accuracyMulti.push_back(std::pair<BonusStatFunc, float>(&statUs1<&UnitStats::firing>, 1.0f));
+	_meleeMulti.push_back(std::pair<BonusStatFunc, float>(&statUs1<&UnitStats::melee>, 1.0f));
+	_throwMulti.push_back(std::pair<BonusStatFunc, float>(&statUs1<&UnitStats::throwing>, 1.0f));
 }
 
 /**
@@ -478,7 +478,7 @@ void RuleItem::load(const YAML::Node &node, int modIndex, int listOrder, const s
 		{
 			_powerRangeReduction = 1;
 			_accuracyMulti.clear();
-			_accuracyMulti.push_back(std::make_pair(&statUs2<&UnitStats::psiSkill, &UnitStats::psiStrength>, 0.02f));
+			_accuracyMulti.push_back(std::pair<BonusStatFunc, float>(&statUs2<&UnitStats::psiSkill, &UnitStats::psiStrength>, 0.02f));
 		}
 	}
 	if (node["skillApplied"])
@@ -486,17 +486,17 @@ void RuleItem::load(const YAML::Node &node, int modIndex, int listOrder, const s
 		_meleeMulti.clear();
 		if (node["skillApplied"].as<int>(false))
 		{
-			_meleeMulti.push_back(std::make_pair(&statUs1<&UnitStats::melee>, 1.0f));
+			_meleeMulti.push_back(std::pair<BonusStatFunc, float>(&statUs1<&UnitStats::melee>, 1.0f));
 		}
 		else
 		{
-			_meleeMulti.push_back(std::make_pair(&statInt<100>, 1.0f));
+			_meleeMulti.push_back(std::pair<BonusStatFunc, float>(&statInt<100>, 1.0f));
 		}
 	}
 	if (node["strengthApplied"].as<bool>(false))
 	{
 		_damageBonus.clear();
-		_damageBonus.push_back(std::make_pair(&statUs1<&UnitStats::strength>, 1.0f));
+		_damageBonus.push_back(std::pair<BonusStatFunc, float>(&statUs1<&UnitStats::strength>, 1.0f));
 	}
 
 	statsModiferWrite(_damageBonus, node["damageBonus"]);

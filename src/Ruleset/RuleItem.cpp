@@ -34,7 +34,7 @@ namespace
  * Function returning static value.
  */
 template<int I>
-float stat(const BattleUnit *unit)
+float statInt(const BattleUnit *unit)
 {
 	return I;
 }
@@ -42,7 +42,7 @@ float stat(const BattleUnit *unit)
  * Getter for one basic stat of unit.
  */
 template<int UnitStats::* field>
-float stat(const BattleUnit *unit)
+float statUs1(const BattleUnit *unit)
 {
 	const UnitStats *stat = unit->getBaseStats();
 	return stat->*field;
@@ -52,7 +52,7 @@ float stat(const BattleUnit *unit)
  * Getter for multiply of two basic stat of unit.
  */
 template<int UnitStats::* fieldA, int UnitStats::* fieldB>
-float stat(const BattleUnit *unit)
+float statUs2(const BattleUnit *unit)
 {
 	const UnitStats *stat = unit->getBaseStats();
 	return (stat->*fieldA) * (stat->*fieldB);
@@ -144,27 +144,27 @@ BonusStatDataFunc create()
  * Helper function creating BonusStatData with proper functions.
  */
 template<int Val>
-BonusStatDataFunc create()
+BonusStatDataFunc createInt()
 {
-	return create<&stat<Val> >();
+	return create<&statInt<Val> >();
 }
 
 /**
  * Helper function creating BonusStatData with proper functions.
  */
 template<int UnitStats::* fieldA>
-BonusStatDataFunc create()
+BonusStatDataFunc createUs1()
 {
-	return create<&stat<fieldA> >();
+	return create<&statUs1<fieldA> >();
 }
 
 /**
  * Helper function creating BonusStatData with proper functions.
  */
 template<int UnitStats::* fieldA, int UnitStats::* fieldB>
-BonusStatDataFunc create()
+BonusStatDataFunc createUs2()
 {
-	return create<&stat<fieldA, fieldB> >();
+	return create<&statUs2<fieldA, fieldB> >();
 }
 
 /**
@@ -172,23 +172,23 @@ BonusStatDataFunc create()
  */
 BonusStatData statDataMap[] =
 {
-	{ "flatOne", create<1>() },
-	{ "flatHunderd", create<100>() },
-	{ "strength", create<&UnitStats::strength>() },
-	{ "psi", create<&UnitStats::psiSkill, &UnitStats::psiStrength>() },
-	{ "psiSkill", create<&UnitStats::psiSkill>() },
-	{ "psiStrength", create<&UnitStats::psiStrength>() },
-	{ "throwing", create<&UnitStats::throwing>() },
-	{ "bravery", create<&UnitStats::bravery>() },
-	{ "firing", create<&UnitStats::firing>() },
-	{ "health", create<&UnitStats::health>() },
-	{ "tu", create<&UnitStats::tu>() },
-	{ "reactions", create<&UnitStats::reactions>() },
-	{ "stamina", create<&UnitStats::stamina>() },
-	{ "melee", create<&UnitStats::melee>() },
-	{ "strengthMelee", create<&UnitStats::strength, &UnitStats::melee>() },
-	{ "strengthThrowing", create<&UnitStats::strength, &UnitStats::throwing>() },
-	{ "firingReactions", create<&UnitStats::firing, &UnitStats::reactions>() },
+	{ "flatOne", createInt<1>() },
+	{ "flatHunderd", createInt<100>() },
+	{ "strength", createUs1<&UnitStats::strength>() },
+	{ "psi", createUs2<&UnitStats::psiSkill, &UnitStats::psiStrength>() },
+	{ "psiSkill", createUs1<&UnitStats::psiSkill>() },
+	{ "psiStrength", createUs1<&UnitStats::psiStrength>() },
+	{ "throwing", createUs1<&UnitStats::throwing>() },
+	{ "bravery", createUs1<&UnitStats::bravery>() },
+	{ "firing", createUs1<&UnitStats::firing>() },
+	{ "health", createUs1<&UnitStats::health>() },
+	{ "tu", createUs1<&UnitStats::tu>() },
+	{ "reactions", createUs1<&UnitStats::reactions>() },
+	{ "stamina", createUs1<&UnitStats::stamina>() },
+	{ "melee", createUs1<&UnitStats::melee>() },
+	{ "strengthMelee", createUs2<&UnitStats::strength, &UnitStats::melee>() },
+	{ "strengthThrowing", createUs2<&UnitStats::strength, &UnitStats::throwing>() },
+	{ "firingReactions", createUs2<&UnitStats::firing, &UnitStats::reactions>() },
 
 	{ "healthCurrent", create<&curretHealth>() },
 	{ "tuCurrent", create<&curretTimeUnits>() },
@@ -258,9 +258,9 @@ RuleItem::RuleItem(const std::string &type) :
 	_maxRange(200), _aimRange(200), _snapRange(15), _autoRange(7), _minRange(0), _dropoff(2), _bulletSpeed(0), _explosionSpeed(0), _autoShots(3), _shotgunPellets(0),
 	_LOSRequired(false), _underwaterOnly(false), _psiReqiured(false), _meleeSound(39), _meleePower(0), _meleeAnimation(0), _meleeHitSound(-1), _specialType(-1), _vaporColor(-1), _vaporDensity(0), _vaporProbability(15)
 {
-	_accuracyMulti.push_back(std::make_pair(&stat<&UnitStats::firing>, 1.0f));
-	_meleeMulti.push_back(std::make_pair(&stat<&UnitStats::melee>, 1.0f));
-	_throwMulti.push_back(std::make_pair(&stat<&UnitStats::throwing>, 1.0f));
+	_accuracyMulti.push_back(std::make_pair(&statUs1<&UnitStats::firing>, 1.0f));
+	_meleeMulti.push_back(std::make_pair(&statUs1<&UnitStats::melee>, 1.0f));
+	_throwMulti.push_back(std::make_pair(&statUs1<&UnitStats::throwing>, 1.0f));
 }
 
 /**
@@ -478,7 +478,7 @@ void RuleItem::load(const YAML::Node &node, int modIndex, int listOrder, const s
 		{
 			_powerRangeReduction = 1;
 			_accuracyMulti.clear();
-			_accuracyMulti.push_back(std::make_pair(&stat<&UnitStats::psiSkill, &UnitStats::psiStrength>, 0.02f));
+			_accuracyMulti.push_back(std::make_pair(&statUs2<&UnitStats::psiSkill, &UnitStats::psiStrength>, 0.02f));
 		}
 	}
 	if (node["skillApplied"])
@@ -486,17 +486,17 @@ void RuleItem::load(const YAML::Node &node, int modIndex, int listOrder, const s
 		_meleeMulti.clear();
 		if (node["skillApplied"].as<int>(false))
 		{
-			_meleeMulti.push_back(std::make_pair(&stat<&UnitStats::melee>, 1.0f));
+			_meleeMulti.push_back(std::make_pair(&statUs1<&UnitStats::melee>, 1.0f));
 		}
 		else
 		{
-			_meleeMulti.push_back(std::make_pair(&stat<100>, 1.0f));
+			_meleeMulti.push_back(std::make_pair(&statInt<100>, 1.0f));
 		}
 	}
 	if (node["strengthApplied"].as<bool>(false))
 	{
 		_damageBonus.clear();
-		_damageBonus.push_back(std::make_pair(&stat<&UnitStats::strength>, 1.0f));
+		_damageBonus.push_back(std::make_pair(&statUs1<&UnitStats::strength>, 1.0f));
 	}
 
 	statsModiferWrite(_damageBonus, node["damageBonus"]);

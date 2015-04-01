@@ -121,8 +121,7 @@ void MeleeAttackBState::init()
 	}
 
 	int height = _target->getFloatHeight() + (_target->getHeight() / 2) - _parent->getSave()->getTile(_action.target)->getTerrainLevel();
-	_parent->getSave()->getPathfinding()->directionToVector(_unit->getDirection(), &_voxel);
-	_voxel = _action.target * Position(16, 16, 24) + Position(8, 8, height) - _voxel;
+	_voxel = _action.target * Position(16, 16, 24) + Position(8, 8, height);
 
 	performMeleeAttack();
 }
@@ -269,8 +268,15 @@ void MeleeAttackBState::resolveHit()
 			_parent->getResourcePack()->getSoundByDepth(_parent->getDepth(), _action.weapon->getRules()->getMeleeHitSound())->play(-1, _parent->getMap()->getSoundAngle(_action.target));
 		}
 		
+		// offset the damage voxel ever so slightly so that the target knows which side the attack came from
+		Position difference = _unit->getPosition() - _action.target;
+		// large units may cause it to offset too much, so we'll clamp the values.
+		difference.x = std::max(-1, std::min(1, difference.x));
+		difference.y = std::max(-1, std::min(1, difference.y));
+
+		Position damagePosition = _voxel + difference;
 		// damage the unit.
-		_parent->getSave()->getTileEngine()->hit(_voxel, power, type, _unit);
+		_parent->getSave()->getTileEngine()->hit(damagePosition, power, type, _unit);
 		// now check for new casualties
 		_parent->checkForCasualties(_ammo, _unit);
 	}

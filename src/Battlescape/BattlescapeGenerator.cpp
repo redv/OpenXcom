@@ -377,10 +377,18 @@ void BattlescapeGenerator::run()
 			_terrain = _game->getRuleset()->getTerrain(_worldTexture->getRandomTerrain(target));
 		}
 	}
+
 	// new battle menu will have set the depth already
-	if (_terrain->getMaxDepth() > 0 && _save->getDepth() == 0)
+	if (_save->getDepth() == 0)
 	{
-		_save->setDepth(RNG::generate(_terrain->getMinDepth(), _terrain->getMaxDepth()));
+		if (ruleDeploy->getMaxDepth() > 0)
+		{
+			_save->setDepth(RNG::generate(ruleDeploy->getMinDepth(), ruleDeploy->getMaxDepth()));
+		}
+		else if (_terrain->getMaxDepth() > 0)
+		{
+			_save->setDepth(RNG::generate(_terrain->getMinDepth(), _terrain->getMaxDepth()));
+		}
 	}
 
 	if (ruleDeploy->getShade() != -1)
@@ -921,6 +929,12 @@ void BattlescapeGenerator::deployAliens(AlienDeployment *deployment)
 				}
 				else
 				{
+					if (itemLevel >= (*d).itemSets.size())
+					{
+						std::stringstream ss;
+						ss << "Unit generator encountered an error: not enough item sets defined, expected: " << itemLevel + 1 << " found: " << (*d).itemSets.size();
+						throw Exception(ss.str());
+					}
 					for (std::vector<std::string>::iterator it = (*d).itemSets.at(itemLevel).items.begin(); it != (*d).itemSets.at(itemLevel).items.end(); ++it)
 					{
 						RuleItem *ruleItem = _game->getRuleset()->getItem((*it));

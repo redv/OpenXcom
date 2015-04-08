@@ -1,0 +1,99 @@
+# X-COM 1 (UFO: Enemy Unknown) ruleset
+defense:
+  cooldown: 30           # (min). If value == 0 then active defense will be disabled permanently.
+  retaliationChance: 30  # 0..100 (%). Chance to uncover the base by aliens after each volley.
+#-----------------------------------
+crafts:
+  - type: STR_BASE
+    requires:
+      - STR_BASE_DEF
+    sprite: 1  #26  # I need new icon
+#    damageMax: 10000
+    weapons: 2
+#-----------------------------------
+craftWeapons:
+  - type: STR_MISSILE_DEFENSES
+    sprite: 1
+    sound: 5
+    damage: 100    # the same as for launcher
+    range: 160     # the same as for facility
+    accuracy: 50   # the same as for facility
+    reloadCautious: 96    # not used
+    reloadStandard: 72
+    reloadAggressive: 48  # not used
+    ammoMax: 100   # actually maximum is 6x6-1 = 35
+    launcher: STR_AVALANCHE_LAUNCHER
+#    clip: STR_AVALANCHE_MISSILES
+    projectileType: 1
+    projectileSpeed: 8
+  - type: STR_LASER_DEFENSES
+    sprite: 4
+    sound: 8
+    damage: 70
+    range: 180
+    accuracy: 60
+    reloadCautious: 24
+    reloadStandard: 24
+    reloadAggressive: 24
+    ammoMax: 100
+    launcher: STR_LASER_CANNON
+    projectileType: 4
+  - type: STR_PLASMA_DEFENSES
+    sprite: 5
+    sound: 9
+    damage: 140
+    range: 200
+    accuracy: 70
+    reloadCautious: 24
+    reloadStandard: 24
+    reloadAggressive: 24
+    ammoMax: 100
+    launcher: STR_PLASMA_BEAM
+    projectileType: 5
+  - type: STR_FUSION_BALL_DEFENSES
+    sprite: 3
+    sound: 7
+    damage: 230
+    range: 220
+    accuracy: 80
+    reloadCautious: 64
+    reloadStandard: 48
+    reloadAggressive: 32
+    ammoMax: 100
+    launcher: STR_FUSION_BALL_LAUNCHER
+#    clip: STR_FUSION_BALL
+    projectileType: 3
+    projectileSpeed: 8
+#-----------------------------------
+facilities:
+  - type: STR_MISSILE_DEFENSES
+    defenseRange: 160
+  - type: STR_LASER_DEFENSES
+    defenseRange: 180
+  - type: STR_PLASMA_DEFENSES
+    defenseRange: 200
+  - type: STR_FUSION_BALL_DEFENSES
+    defenseRange: 220
+#-----------------------------------
+#extraSprites:
+#  - type: INTICON.PCK
+#    width: 352
+#    height: 80
+#    subX: 32
+#    subY: 40
+#    frames: 50  # How many frames in the sprite.
+#    files:
+#      26: Resources/Base_Defense/bd_geoscape.png
+#-----------------------------------
+extraStrings:
+  - type: en-US
+    strings:
+      STR_ACTIVATE_DEFENSE: Activate Base Defense
+  - type: en-GB
+    strings:
+    strings:
+      STR_ACTIVATE_DEFENSE: Activate Base Defence
+  - type: ru
+    strings:
+    strings:
+      STR_ACTIVATE_DEFENSE: Активировать защиту базы

@@ -901,6 +901,22 @@ void GeoscapeState::time5Seconds()
 			}
 			 ++j;
 		}
+		// Handle base defense.
+		(*i)->countdownDefenseCooldown();
+		if ((*i)->isDefenseReady())
+		{
+			for (std::vector<Ufo*>::iterator u = _game->getSavedGame()->getUfos()->begin(); u != _game->getSavedGame()->getUfos()->end(); ++u)
+			{
+				if ((*u)->getDetected() && (*i)->insideDefenseRange(*u))
+				{
+					// at this moment should be all ok, but better to check one more time
+					if ((*i)->getBaseCraft() == 0) break;
+
+					// TODO: shoot down the UFO.
+					break;
+				}
+			}
+		}
 	}
 
 	// Clean up dead UFOs and end dogfights which were minimized.
@@ -1446,6 +1462,10 @@ void GeoscapeState::time1Day()
 				(*j)->build();
 				if ((*j)->getBuildTime() == 0)
 				{
+					if ((*j)->getRules()->getDefenseValue() > 0)
+					{
+						(*i)->updateDefenses();
+					}
 					popup(new ProductionCompleteState((*i),  tr((*j)->getRules()->getType()), this, PROGRESS_CONSTRUCTION));
 				}
 			}

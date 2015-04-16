@@ -56,12 +56,12 @@ private:
 	std::vector<Transfer*> _transfers;
 	ItemContainer *_items;
 	int _scientists, _engineers;
-	int _defenseCooldownCounter;
+	int _defenseRechargeTimeCounter;
 	std::vector<ResearchProject *> _research;
 	std::vector<Production *> _productions;
 	bool _inBattlescape;
 	bool _retaliationTarget;
-	bool _activeDefense, _reloadDefense;
+	bool _activeDefense, _reloadBaseCraft;
 	Craft *_baseCraft;
 	std::vector<Vehicle*> _vehicles;
 	std::vector<BaseFacility*> _defenses;
@@ -201,7 +201,7 @@ public:
 	/// Gets the retaliation status of this base.
 	bool getRetaliationTarget() const;
 	/// Countdown the cooldown counter of base defense.
-	int countdownDefenseCooldown();
+	int countdownDefenseRecharge();
 	/// Check possibility to activate base defense.
 	bool isDefenseCanBeActivated() const;
 	/// Activate/deactivate base defense.
@@ -216,8 +216,10 @@ public:
 	Craft *getBaseCraft();
 	/// Update vector of defense facilities.
 	void updateDefenses();
-	/// Sets base defense to reloading after battle.
-	void setReloadDefense(bool attackedAnUFO);
+	/// Delete facility and update vectors.
+	void deleteFacility(std::vector<BaseFacility*>::iterator facility);
+	/// Sets base defense to recharging after battle.
+	void setRechargeDefense(bool ufoAttacked = false);
 	/// Get the detection chance for this base.
 	size_t getDetectionChance() const;
 	/// Gets how many Grav Shields the base has

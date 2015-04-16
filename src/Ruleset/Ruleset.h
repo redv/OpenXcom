@@ -108,7 +108,7 @@ protected:
 	std::vector<StatString*> _statStrings;
 	std::map<std::string, RuleMusic *> _musics;
 	RuleGlobe *_globe;
-	int _defenseCooldown, _defenseRetaliationChance;
+	int _defenseRechargeTime, _defenseRetaliationChance;
 	int _costSoldier, _costEngineer, _costScientist, _timePersonnel, _initialFunding;
 	std::string _alienFuel;
 	YAML::Node _startingBase;
@@ -197,9 +197,9 @@ public:
 	/// Gets the ruleset for a specific inventory.
 	RuleInventory *getInventory(const std::string &id) const;
 	/// Gets the defense's cooldown value.
-	int getDefenseCooldown() const           {return _defenseCooldown;}
+	int getDefenseRechargeTime() const       {return _defenseRechargeTime;}
 	/// Checks possibility of using active defense.
-	bool isDefenseWorks() const              {return _defenseCooldown > 0;}
+	bool isDefenseWorks() const              {return _defenseRechargeTime > 0;}
 	/// Gets chance of detection Xcom base by aliens during ground to air attack.
 	int getDefenseRetaliationChance() const  {return _defenseRetaliationChance;}
 	/// Gets the cost of a soldier.

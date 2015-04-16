@@ -65,6 +65,7 @@
 #include "ProductionCompleteState.h"
 #include "UfoDetectedState.h"
 #include "GeoscapeCraftState.h"
+#include "DogfightBaseState.h"
 #include "DogfightState.h"
 #include "UfoLostState.h"
 #include "CraftPatrolState.h"
@@ -913,18 +914,32 @@ void GeoscapeState::time5Seconds()
 			}
 			 ++j;
 		}
+
 		// Handle base defense.
-		(*i)->countdownDefenseCooldown();
-		if ((*i)->isDefenseReady())
+		(*i)->countdownDefenseRecharge();
+		// Check status of base defense and quantity of interceptions (no more 4 at a time).
+		if ((*i)->isDefenseReady() && _dogfights.size() + _dogfightsToBeStarted.size() < 4)
 		{
 			for (std::vector<Ufo*>::iterator u = _game->getSavedGame()->getUfos()->begin(); u != _game->getSavedGame()->getUfos()->end(); ++u)
 			{
-				if ((*u)->getDetected() && (*i)->insideDefenseRange(*u))
+				if ((*u)->getDetected() && (*u)->getStatus() == Ufo::FLYING && (*i)->insideDefenseRange(*u))
 				{
-					// at this moment should be all ok, but better to check one more time
+					// At this moment should be all ok, but better to check one more time.
 					if ((*i)->getBaseCraft() == 0) break;
 
-					// TODO: shoot down the UFO.
+					// Try to shot down the UFO.
+					_dogfightsToBeStarted.push_back(static_cast<DogfightState*>(new DogfightBaseState(_globe, *i, *u)));
+					if (!_dogfightStartTimer->isRunning())
+					{
+						_pause = true;
+						timerReset();
+						_globe->center((*u)->getLongitude(), (*u)->getLatitude());
+						startDogfight();
+						_dogfightStartTimer->start();
+					}
+					_game->getResourcePack()->playMusic("GMINTER", true);
+
+					// Only one target per base.
 					break;
 				}
 			}

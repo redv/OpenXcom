@@ -52,7 +52,7 @@ namespace OpenXcom
  * Initializes an empty base.
  * @param rule Pointer to ruleset.
  */
-Base::Base(const Ruleset *rule) : Target(), _rule(rule), _scientists(0), _engineers(0), _defenseCooldownCounter(0), _inBattlescape(false), _retaliationTarget(false), _activeDefense(false), _reloadDefense(true), _baseCraft(0)
+Base::Base(const Ruleset *rule) : Target(), _rule(rule), _scientists(0), _engineers(0), _defenseRechargeTimeCounter(0), _inBattlescape(false), _retaliationTarget(false), _activeDefense(false), _reloadBaseCraft(true), _baseCraft(0)
 {
 	_items = new ItemContainer();
 }
@@ -174,6 +174,7 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 
 	_scientists = node["scientists"].as<int>(_scientists);
 	_engineers = node["engineers"].as<int>(_engineers);
+	_defenseRechargeTimeCounter = node["rechargeTime"].as<int>(_defenseRechargeTimeCounter);
 	_inBattlescape = node["inBattlescape"].as<bool>(_inBattlescape);
 
 	for (YAML::const_iterator i = node["transfers"].begin(); i != node["transfers"].end(); ++i)
@@ -243,6 +244,10 @@ YAML::Node Base::save() const
 	node["items"] = _items->save();
 	node["scientists"] = _scientists;
 	node["engineers"] = _engineers;
+	if (_defenseRechargeTimeCounter > 0)
+	{
+		node["rechargeTime"] = _defenseRechargeTimeCounter;
+	}
 	node["inBattlescape"] = _inBattlescape;
 	for (std::vector<Transfer*>::const_iterator i = _transfers.begin(); i != _transfers.end(); ++i)
 	{
@@ -257,7 +262,10 @@ YAML::Node Base::save() const
 		node["productions"].push_back((*i)->save());
 	}
 	node["retaliationTarget"] = _retaliationTarget;
-	node["activeDefense"] = _activeDefense;
+	if (_activeDefense)
+	{
+		node["activeDefense"] = _activeDefense;
+	}
 	return node;
 }
 
@@ -1202,9 +1210,9 @@ bool Base::getRetaliationTarget() const
  * Countdown the cooldown counter of base defense.
  * @return Value of the cooldown counter.
  */
-int Base::countdownDefenseCooldown()
+int Base::countdownDefenseRecharge()
 {
-	return (_defenseCooldownCounter > 0)? --_defenseCooldownCounter : _defenseCooldownCounter;
+	return (_defenseRechargeTimeCounter > 0)? --_defenseRechargeTimeCounter : _defenseRechargeTimeCounter;
 }
 
 /**
@@ -1240,7 +1248,7 @@ bool Base::isDefenseActive() const
  */
 bool Base::isDefenseReady() const
 {
-	return isDefenseActive() && _defenseCooldownCounter == 0;
+	return isDefenseActive() && _defenseRechargeTimeCounter == 0 && (_baseCraft == 0 || !_baseCraft->isInDogfight());
 }
 
 /**
@@ -1251,7 +1259,7 @@ bool Base::isDefenseReady() const
 bool Base::insideDefenseRange(Target *target) const
 {
 	// TODO: take into account altitude of target
-	double distance = getDistance(target) * 60.0 * (180.0 / M_PI);
+	int distance = int(getDistance(target) * 60.0 * (180.0 / M_PI));
 	for (std::vector<BaseFacility*>::const_iterator i = _defenses.begin(); i != _defenses.end(); ++i)
 	{
 		if ((*i)->getRules()->getDefenseRange() > distance)
@@ -1277,7 +1285,7 @@ Craft *Base::newBaseCraft()
 	Craft *craft = new Craft(ruleCraft, this, 0);
 	craft->setName(getName());
 
-	_reloadDefense = true;
+	_reloadBaseCraft = true;
 
 	return craft;
 }
@@ -1292,7 +1300,7 @@ Craft *Base::getBaseCraft()
 		_baseCraft = newBaseCraft();
 	}
 
-	if (_reloadDefense && _baseCraft != 0)
+	if (_reloadBaseCraft && _baseCraft != 0)
 	{
 		if (_defenses.empty())
 		{
@@ -1315,34 +1323,41 @@ Craft *Base::getBaseCraft()
 void Base::reloadBaseCraft()
 {
 	// count defenses of each type
-	std::map<const std::string, int> numDefenses;
+	std::map<const RuleBaseFacility*, int> numDefenses;
 	for (std::vector<BaseFacility*>::const_iterator d = _defenses.begin(); d != _defenses.end(); ++d)
 	{
-		numDefenses[(*d)->getRules()->getType()] += 1;
+		numDefenses[(*d)->getRules()] += 1;
 	}
 
-	// be careful! next time can be only one weapon
+	// reloading
 	std::vector<CraftWeapon*> &weapons = *_baseCraft->getWeapons();
 	for (std::vector<CraftWeapon*>::iterator w = weapons.begin(); w != weapons.end(); ++w)
 	{
-		delete *w;
-		*w = 0;
-	}
+		delete (*w);
+		(*w) = 0;
 
-	// generate weapons from defenses (TODO: choose only 2 best weapons)
-	// quantity of rounds = quantity defenses of this type
-	int i = 0;
-	for (std::map<const std::string, int>::const_iterator nd = numDefenses.begin(); nd != numDefenses.end(); ++nd)
-	{
-		RuleCraftWeapon *ruleCW = _rule->getCraftWeapon(nd->first);
-		if (ruleCW != 0)
+		// choose a best defense by range
+		std::map<const RuleBaseFacility*, int>::iterator bestDefense = numDefenses.begin();
+		for (std::map<const RuleBaseFacility*, int>::iterator d = numDefenses.begin(); d != numDefenses.end(); ++d)
 		{
-			weapons[i] = new CraftWeapon(ruleCW, nd->second);
-			if (++i == _baseCraft->getRules()->getWeapons()) break;
+			if (bestDefense->first->getDefenseRange() < d->first->getDefenseRange())
+				bestDefense = d;
+		}
+
+		// generate weapons from defenses
+		// quantity of rounds = quantity of defenses * max ammo for this defense
+		if (bestDefense != numDefenses.end())
+		{
+			RuleCraftWeapon *ruleCW = _rule->getCraftWeapon(bestDefense->first->getType());
+			if (ruleCW != 0)
+			{
+				(*w) = new CraftWeapon(ruleCW, bestDefense->second * ruleCW->getAmmoMax());
+			}
+			numDefenses.erase(bestDefense);
 		}
 	}
 	numDefenses.clear();
-	_reloadDefense = false;
+	_reloadBaseCraft = false;
 }
 
 /**
@@ -1359,22 +1374,35 @@ void Base::updateDefenses()
 		}
 	}
 
-	_reloadDefense = true;
+	_reloadBaseCraft = true;
 }
 
 /**
- * Sets base defense to reloading after battle.
+ * Delete facility and update vectors.
+ * @param Iterator facilities
+ */
+void Base::deleteFacility(std::vector<BaseFacility*>::iterator facility)
+{
+	bool isItDefense = (*facility)->getRules()->getDefenseValue() > 0;
+	delete *facility;
+	_facilities.erase(facility);
+
+	if (isItDefense) updateDefenses();
+}
+
+/**
+ * Sets base defense to recharging after battle.
  * @param True if the defense attacked an UFO.
  */
-void Base::setReloadDefense(bool attackedAnUFO)
+void Base::setRechargeDefense(bool ufoAttacked)
 {
-	_reloadDefense = attackedAnUFO;
-	// 60 sec/min / 5 sec = 12 min^-1
-	_defenseCooldownCounter = 12 * _rule->getDefenseCooldown();
+	_reloadBaseCraft = ufoAttacked;
+	// 60 sec/min / 5 sec/inc = 12 inc/min
+	_defenseRechargeTimeCounter = 12 * _rule->getDefenseRechargeTime();
 
-	if (attackedAnUFO && RNG::percent(_rule->getDefenseRetaliationChance()))
+	if (ufoAttacked && RNG::percent(_rule->getDefenseRetaliationChance()))
 	{
-		setRetaliationTarget();
+		setRetaliationTarget(true);
 	}
 }
 
@@ -1542,7 +1570,6 @@ void Base::destroyDisconnectedFacilities()
 	{
 		destroyFacility(*i);
 	}
-	updateDefenses();
 }
 
 /**
@@ -1806,9 +1833,7 @@ void Base::destroyFacility(std::vector<BaseFacility*>::iterator facility)
 			}
 		}
 	}
-	delete *facility;
-	_facilities.erase(facility);
-	updateDefenses();
+	deleteFacility(facility);
 }
 
 /**

@@ -233,7 +233,7 @@ const int DogfightState::_projectileBlobs[4][6][3] =
  * @param craft Pointer to the craft intercepting.
  * @param ufo Pointer to the UFO being intercepted.
  */
-DogfightState::DogfightState(Globe *globe, Craft *craft, Ufo *ufo) : _globe(globe), _craft(craft), _ufo(ufo), _timeout(50), _currentDist(640), _targetDist(560), _w1FireCountdown(0), _w2FireCountdown(0), _end(false), _destroyUfo(false), _destroyCraft(false), _ufoBreakingOff(false), _weapon1Enabled(true), _weapon2Enabled(true), _minimized(false), _endDogfight(false), _animatingHit(false), _ufoSize(0), _craftHeight(0), _currentCraftDamageColor(0), _interceptionNumber(0), _interceptionsCount(0), _x(0), _y(0), _minimizedIconX(0), _minimizedIconY(0)
+DogfightState::DogfightState(Globe *globe, Craft *craft, Ufo *ufo, const std::string &interwin) : _globe(globe), _craft(craft), _ufo(ufo), _timeout(50), _currentDist(640), _targetDist(560), _w1FireCountdown(0), _w2FireCountdown(0), _end(false), _destroyUfo(false), _destroyCraft(false), _ufoBreakingOff(false), _weapon1Enabled(true), _weapon2Enabled(true), _minimized(false), _endDogfight(false), _animatingHit(false), _ufoSize(0), _craftHeight(0), _currentCraftDamageColor(0), _interceptionNumber(0), _interceptionsCount(0), _x(0), _y(0), _minimizedIconX(0), _minimizedIconY(0)
 {
 	_screen = false;
 
@@ -297,8 +297,15 @@ DogfightState::DogfightState(Globe *globe, Craft *craft, Ufo *ufo) : _globe(glob
 		_txtDistance->setX(_txtDistance->getX() + 7);
 	}
 	// Set up objects
-	Surface *graphic;
-	graphic = _game->getResourcePack()->getSurface("INTERWIN.DAT");
+	Surface *graphic = 0;
+	if (!interwin.empty())
+	{
+		graphic = _game->getResourcePack()->getSurface(interwin);
+	}
+	if (graphic == 0)
+	{
+		graphic = _game->getResourcePack()->getSurface("INTERWIN.DAT");
+	}
 	graphic->setX(0);
 	graphic->setY(0);
 	graphic->getCrop()->x = 0;

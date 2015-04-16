@@ -919,6 +919,9 @@
     <ClCompile Include="Battlescape\PsiAttackBState.cpp">
       <Filter>Battlescape</Filter>
     </ClCompile>
+    <ClCompile Include="Geoscape\DogfightBaseState.cpp">
+      <Filter>Geoscape</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
@@ -1865,6 +1868,9 @@
     </ClInclude>
     <ClInclude Include="Battlescape\PsiAttackBState.h">
       <Filter>Battlescape</Filter>
+    </ClInclude>
+    <ClInclude Include="Geoscape\DogfightBaseState.h">
+      <Filter>Geoscape</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -23,6 +23,7 @@
 #include "../Engine/Language.h"
 #include "../Engine/Palette.h"
 #include "../Interface/TextButton.h"
+#include "../Interface/ToggleTextButton.h"
 #include "../Interface/Window.h"
 #include "../Interface/Text.h"
 #include "../Interface/TextList.h"
@@ -48,12 +49,14 @@ namespace OpenXcom
  */
 InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _globe(globe), _base(base), _target(target)
 {
+	bool showBtnDefense = _base != 0 && _base->isDefenseCanBeActivated();
 	_screen = false;
 
 	// Create objects
-	_window = new Window(this, 320, 140, 0, 30, POPUP_HORIZONTAL);
+	_window = new Window(this, 320, showBtnDefense? 160 : 140, 0, 30, POPUP_HORIZONTAL);
 	_btnCancel = new TextButton(_base ? 142 : 288, 16, 16, 146);
 	_btnGotoBase = new TextButton(142, 16, 162, 146);
+	_btnActivateBaseDefense = new ToggleTextButton(288, 14, 16, 166);
 	_txtTitle = new Text(300, 17, 10, 46);
 	_txtCraft = new Text(86, 9, 14, 70);
 	_txtStatus = new Text(70, 9, 100, 70);
@@ -67,12 +70,13 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 	add(_window, "window", "geoCraftScreens");
 	add(_btnCancel, "button", "geoCraftScreens");
 	add(_btnGotoBase, "button", "geoCraftScreens");
+	add(_btnActivateBaseDefense, "button", "geoCraftScreens");
 	add(_txtTitle, "text1", "geoCraftScreens");
 	add(_txtCraft, "text2", "geoCraftScreens");
 	add(_txtStatus, "text2", "geoCraftScreens");
 	add(_txtBase, "text2", "geoCraftScreens");
 	add(_txtWeapons, "text2", "geoCraftScreens");
-	add(_lstCrafts, "text1", "geoCraftScreens");
+	add(_lstCrafts, "list", "geoCraftScreens");
 
 	centerAllSurfaces();
 
@@ -87,6 +91,10 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
 	_btnGotoBase->setText(tr("STR_GO_TO_BASE"));
 	_btnGotoBase->onMouseClick((ActionHandler)&InterceptState::btnGotoBaseClick);
 	_btnGotoBase->setVisible(_base != 0);
+
+	_btnActivateBaseDefense->setText(tr("STR_ACTIVATE_DEFENSE"));
+	_btnActivateBaseDefense->setVisible(showBtnDefense);
+	_btnActivateBaseDefense->setPressed(_base != 0 && _base->isDefenseActive());
 
 	_txtTitle->setAlign(ALIGN_CENTER);
 	_txtTitle->setBig();
@@ -157,7 +165,10 @@ InterceptState::InterceptState(Globe *globe, Base *base, Target *target) : _glob
  */
 InterceptState::~InterceptState()
 {
-
+	if (_base != 0)
+	{
+		_base->setActiveDefense(_btnActivateBaseDefense->getPressed());
+	}
 }
 
 /**

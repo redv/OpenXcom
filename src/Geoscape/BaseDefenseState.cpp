@@ -96,6 +96,10 @@ BaseDefenseState::BaseDefenseState(Base *base, Ufo *ufo, GeoscapeState *state) :
 	_lstDefenses->setColumns(3, 134, 70, 50);
 	_gravShields = _base->getGravShields();
 	_defenses = _base->getDefenses()->size();
+	if (_defenses > 0)
+	{
+		_base->setRechargeDefense();
+	}
 	_timer = new Timer(250);
 	_timer->onTimer((StateHandler)&BaseDefenseState::nextStep);
 	_timer->start();

@@ -41,7 +41,7 @@ private:
 	bool _lift, _hyper, _mind, _grav;
 	int _size, _buildCost, _buildTime, _monthlyCost;
 	int _storage, _personnel, _aliens, _crafts, _labs, _workshops, _psiLabs;
-	int _radarRange, _radarChance, _defense, _hitRatio, _fireSound, _hitSound;
+	int _radarRange, _radarChance, _defenseRange, _defense, _hitRatio, _fireSound, _hitSound;
 	std::string _mapName;
 	int _listOrder;
 public:
@@ -93,6 +93,8 @@ public:
 	int getRadarRange() const;
 	/// Gets the facility's detection chance.
 	int getRadarChance() const;
+	/// Gets the facility's range of active defense.
+	int getDefenseRange() const  {return _defenseRange;}
 	/// Gets the facility's defense value.
 	int getDefenseValue() const;
 	/// Gets the facility's weapon hit ratio.

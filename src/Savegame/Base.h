@@ -56,14 +56,21 @@ private:
 	std::vector<Transfer*> _transfers;
 	ItemContainer *_items;
 	int _scientists, _engineers;
+	int _defenseRechargeTimeCounter;
 	std::vector<ResearchProject *> _research;
 	std::vector<Production *> _productions;
 	bool _inBattlescape;
 	bool _retaliationTarget;
+	bool _activeDefense, _reloadBaseCraft;
+	Craft *_baseCraft;
 	std::vector<Vehicle*> _vehicles;
 	std::vector<BaseFacility*> _defenses;
 	/// Determines space taken up by ammo clips about to rearm craft.
 	double getIgnoredStores();
+	/// Create a new virtual craft pinned to the base.
+	Craft *newBaseCraft();
+	/// Reloading the virtual craft with weapons based on the base defense.
+	void reloadBaseCraft();
 public:
 	/// Creates a new base.
 	Base(const Ruleset *rule);
@@ -193,6 +200,26 @@ public:
 	void setRetaliationTarget(bool mark = true);
 	/// Gets the retaliation status of this base.
 	bool getRetaliationTarget() const;
+	/// Countdown the cooldown counter of base defense.
+	int countdownDefenseRecharge();
+	/// Check possibility to activate base defense.
+	bool isDefenseCanBeActivated() const;
+	/// Activate/deactivate base defense.
+	void setActiveDefense(bool activate);
+	/// Gets status of the base defense.
+	bool isDefenseActive() const;
+	/// Gets status of the base defense.
+	bool isDefenseReady() const;
+	/// Check if a certain target is inside the base's defense range.
+	bool insideDefenseRange(Target *target) const;
+	/// Gets the virtual craft.
+	Craft *getBaseCraft();
+	/// Update vector of defense facilities.
+	void updateDefenses();
+	/// Delete facility and update vectors.
+	void deleteFacility(std::vector<BaseFacility*>::iterator facility);
+	/// Sets base defense to recharging after battle.
+	void setRechargeDefense(bool ufoAttacked = false);
 	/// Get the detection chance for this base.
 	size_t getDetectionChance() const;
 	/// Gets how many Grav Shields the base has

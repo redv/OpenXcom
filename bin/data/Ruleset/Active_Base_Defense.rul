@@ -1,0 +1,95 @@
+# X-COM 1 (UFO: Enemy Unknown) ruleset
+defense:
+  rechargeTime: 10      # minutes. If value == 0 then active defence will be disabled permanently.
+  retaliationChance: 30 # 0..100 %. Chance to uncover the base by aliens after air battle.
+#-----------------------------------
+crafts:
+  - type: STR_BASE
+    requires:
+      - STR_BASE_DEF
+    sprite: 30
+    damageMax: 100      # should be > 0. Actually not used.
+    weapons: 2
+#-----------------------------------
+craftWeapons:
+  - type: STR_MISSILE_DEFENSES
+    sprite: 1
+    sound: 5
+    damage: 100         # the same as for launcher
+    range: 40           # range in pixels: (range for facility)/4; i.e. 160/4 = 40
+    accuracy: 50        # the same as for defence facility
+    reloadStandard: 72
+    ammoMax: 5          # maximum ammo for each defence facility
+    launcher: STR_AVALANCHE_LAUNCHER
+    projectileType: 1
+    projectileSpeed: 8
+  - type: STR_LASER_DEFENSES
+    sprite: 4
+    sound: 8
+    damage: 70
+    range: 50           # 200/4 = 50
+    accuracy: 60
+    reloadStandard: 24
+    ammoMax: 5
+    launcher: STR_LASER_CANNON
+    projectileType: 4
+  - type: STR_PLASMA_DEFENSES
+    sprite: 5
+    sound: 9
+    damage: 140
+    range: 60           # 240/4 = 60
+    accuracy: 70
+    reloadStandard: 24
+    ammoMax: 5
+    launcher: STR_PLASMA_BEAM
+    projectileType: 5
+  - type: STR_FUSION_BALL_DEFENSES
+    sprite: 3
+    sound: 7
+    damage: 230
+    range: 70           # 280/4 = 70
+    accuracy: 80
+    reloadStandard: 48
+    ammoMax: 4
+    launcher: STR_FUSION_BALL_LAUNCHER
+    projectileType: 3
+    projectileSpeed: 8
+#-----------------------------------
+facilities:
+  - type: STR_MISSILE_DEFENSES
+    defenseRange: 160   # maximum range is 280 miles (70*4 = 280)
+  - type: STR_LASER_DEFENSES
+    defenseRange: 200
+  - type: STR_PLASMA_DEFENSES
+    defenseRange: 240
+  - type: STR_FUSION_BALL_DEFENSES
+    defenseRange: 280
+#-----------------------------------
+extraSprites:
+  - type: INTICON.PCK
+    width: 352
+    height: 80
+    subX: 32
+    subY: 40
+    files:
+      27: Resources/ActiveBaseDefense/abd_geoscape.png
+  - type: INTERWIN2.DAT
+    width: 160
+    height: 556
+    singleImage: true
+    files:
+      0: Resources/ActiveBaseDefense/abd_interwin2.png
+#-----------------------------------
+extraStrings:
+  - type: en-US
+    strings:
+      STR_ACTIVATE_DEFENSE: Activate Base Defense
+      STR_CANT_MINIMIZE_DURING_BATTLE: Can't minimize during battle
+  - type: en-GB
+    strings:
+      STR_ACTIVATE_DEFENSE: Activate Base Defence
+      STR_CANT_MINIMIZE_DURING_BATTLE: Can't minimize during battle
+  - type: ru
+    strings:
+      STR_ACTIVATE_DEFENSE: Активировать защиту базы
+      STR_CANT_MINIMIZE_DURING_BATTLE: Невозможно минимизировать во время боя

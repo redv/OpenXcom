@@ -65,6 +65,7 @@
 #include "ProductionCompleteState.h"
 #include "UfoDetectedState.h"
 #include "GeoscapeCraftState.h"
+#include "DogfightBaseState.h"
 #include "DogfightState.h"
 #include "UfoLostState.h"
 #include "CraftPatrolState.h"
@@ -308,6 +309,9 @@ GeoscapeState::GeoscapeState() : _pause(false), _zoomInEffectDone(false), _zoomO
 	_btn1Day->setGroup(&_timeSpeed);
 	_btn1Day->onKeyboardPress((ActionHandler)&GeoscapeState::btnTimerClick, Options::keyGeoSpeed6);
 	_btn1Day->setGeoscapeButton(true);
+
+	_sideBottom->setGeoscapeButton(true);
+	_sideTop->setGeoscapeButton(true);
 
 	_btnRotateLeft->onMousePress((ActionHandler)&GeoscapeState::btnRotateLeftPress);
 	_btnRotateLeft->onMouseRelease((ActionHandler)&GeoscapeState::btnRotateLeftRelease);
@@ -913,6 +917,36 @@ void GeoscapeState::time5Seconds()
 			}
 			 ++j;
 		}
+
+		// Handle base defense.
+		(*i)->countdownDefenseRecharge();
+		// Check status of base defense and quantity of interceptions (no more 4 at a time).
+		if ((*i)->isDefenseReady() && _dogfights.size() + _dogfightsToBeStarted.size() < 4)
+		{
+			for (std::vector<Ufo*>::iterator u = _game->getSavedGame()->getUfos()->begin(); u != _game->getSavedGame()->getUfos()->end(); ++u)
+			{
+				if ((*u)->getDetected() && (*u)->getStatus() == Ufo::FLYING && (*i)->insideDefenseRange(*u))
+				{
+					// At this moment should be all ok, but better to check one more time.
+					if ((*i)->getBaseCraft() == 0) break;
+
+					// Try to shot down the UFO.
+					_dogfightsToBeStarted.push_back(static_cast<DogfightState*>(new DogfightBaseState(_globe, *i, *u)));
+					if (!_dogfightStartTimer->isRunning())
+					{
+						_pause = true;
+						timerReset();
+						_globe->center((*u)->getLongitude(), (*u)->getLatitude());
+						startDogfight();
+						_dogfightStartTimer->start();
+					}
+					_game->getResourcePack()->playMusic("GMINTER", true);
+
+					// Only one target per base.
+					break;
+				}
+			}
+		}
 	}
 
 	// Clean up dead UFOs and end dogfights which were minimized.
@@ -1460,6 +1494,10 @@ void GeoscapeState::time1Day()
 				(*j)->build();
 				if ((*j)->getBuildTime() == 0)
 				{
+					if ((*j)->getRules()->getDefenseValue() > 0)
+					{
+						(*i)->updateDefenses();
+					}
 					popup(new ProductionCompleteState((*i),  tr((*j)->getRules()->getType()), this, PROGRESS_CONSTRUCTION));
 				}
 			}
@@ -2198,7 +2236,7 @@ void GeoscapeState::setupLandMission()
 	for (int counter = 0; counter < 40 && !picked; ++counter)
 	{
 		region = _game->getRuleset()->getRegion(regions[RNG::generate(0, regions.size()-1)]);
-		if (region->getMissionZones().size() > missionRules.getSpawnZone() &&
+		if (region->getMissionZones().size() > (size_t)(missionRules.getSpawnZone()) &&
 			_game->getSavedGame()->findAlienMission(region->getType(), OBJECTIVE_SITE) == 0)
 		{
 			const MissionZone &zone = region->getMissionZones().at(missionRules.getSpawnZone());

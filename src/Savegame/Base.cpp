@@ -52,7 +52,7 @@ namespace OpenXcom
  * Initializes an empty base.
  * @param rule Pointer to ruleset.
  */
-Base::Base(const Ruleset *rule) : Target(), _rule(rule), _scientists(0), _engineers(0), _inBattlescape(false), _retaliationTarget(false)
+Base::Base(const Ruleset *rule) : Target(), _rule(rule), _scientists(0), _engineers(0), _defenseRechargeTimeCounter(0), _inBattlescape(false), _retaliationTarget(false), _activeDefense(false), _reloadBaseCraft(true), _baseCraft(0)
 {
 	_items = new ItemContainer();
 }
@@ -62,6 +62,9 @@ Base::Base(const Ruleset *rule) : Target(), _rule(rule), _scientists(0), _engine
  */
 Base::~Base()
 {
+	_defenses.clear();
+	delete _baseCraft;
+
 	for (std::vector<BaseFacility*>::iterator i = _facilities.begin(); i != _facilities.end(); ++i)
 	{
 		delete *i;
@@ -122,6 +125,8 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 		}
 	}
 
+	updateDefenses();
+
 	for (YAML::const_iterator i = node["crafts"].begin(); i != node["crafts"].end(); ++i)
 	{
 		std::string type = (*i)["type"].as<std::string>();
@@ -169,6 +174,7 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 
 	_scientists = node["scientists"].as<int>(_scientists);
 	_engineers = node["engineers"].as<int>(_engineers);
+	_defenseRechargeTimeCounter = node["rechargeTime"].as<int>(_defenseRechargeTimeCounter);
 	_inBattlescape = node["inBattlescape"].as<bool>(_inBattlescape);
 
 	for (YAML::const_iterator i = node["transfers"].begin(); i != node["transfers"].end(); ++i)
@@ -212,6 +218,7 @@ void Base::load(const YAML::Node &node, SavedGame *save, bool newGame, bool newB
 	}
 
 	_retaliationTarget = node["retaliationTarget"].as<bool>(_retaliationTarget);
+	_activeDefense = node["activeDefense"].as<bool>(_activeDefense);
 }
 
 /**
@@ -237,6 +244,10 @@ YAML::Node Base::save() const
 	node["items"] = _items->save();
 	node["scientists"] = _scientists;
 	node["engineers"] = _engineers;
+	if (_defenseRechargeTimeCounter > 0)
+	{
+		node["rechargeTime"] = _defenseRechargeTimeCounter;
+	}
 	node["inBattlescape"] = _inBattlescape;
 	for (std::vector<Transfer*>::const_iterator i = _transfers.begin(); i != _transfers.end(); ++i)
 	{
@@ -251,6 +262,10 @@ YAML::Node Base::save() const
 		node["productions"].push_back((*i)->save());
 	}
 	node["retaliationTarget"] = _retaliationTarget;
+	if (_activeDefense)
+	{
+		node["activeDefense"] = _activeDefense;
+	}
 	return node;
 }
 
@@ -1199,6 +1214,206 @@ bool Base::getRetaliationTarget() const
 }
 
 /**
+ * Countdown the cooldown counter of base defense.
+ * @return Value of the cooldown counter.
+ */
+int Base::countdownDefenseRecharge()
+{
+	return (_defenseRechargeTimeCounter > 0)? --_defenseRechargeTimeCounter : _defenseRechargeTimeCounter;
+}
+
+/**
+ * Check possibility to activate base defense.
+ * @return True if the base defense can be activated.
+ */
+bool Base::isDefenseCanBeActivated() const
+{
+	return _rule->isDefenseWorks() && !_defenses.empty();
+}
+
+/**
+ * Activate/deactivate base defense.
+ */
+void Base::setActiveDefense(bool activate)
+{
+	_activeDefense = activate && isDefenseCanBeActivated();
+}
+
+/**
+ * Get status of the base defense.
+ * @return True if defense is active.
+ */
+bool Base::isDefenseActive() const
+{
+	// always check isDefenseCanBeActivated() because defense facilities can be destroyed.
+	return _activeDefense && isDefenseCanBeActivated();
+}
+
+/**
+ * Get status of the base defense.
+ * @return True if defense is ready to shoot.
+ */
+bool Base::isDefenseReady() const
+{
+	return isDefenseActive() && _defenseRechargeTimeCounter == 0 && (_baseCraft == 0 || !_baseCraft->isInDogfight());
+}
+
+/**
+ * Returns if a certain target is inside the base's defense range
+ * @param target Pointer to target to compare.
+ * @return True if target can be downed.
+ */
+bool Base::insideDefenseRange(Target *target) const
+{
+	// TODO: take into account altitude of target
+	int distance = int(getDistance(target) * 60.0 * (180.0 / M_PI));
+	for (std::vector<BaseFacility*>::const_iterator i = _defenses.begin(); i != _defenses.end(); ++i)
+	{
+		if ((*i)->getRules()->getDefenseRange() > distance)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Create a new virtual craft pinned to the base.
+ * @return Ponter to the craft
+ */
+Craft *Base::newBaseCraft()
+{
+	if (_defenses.empty()) return 0;
+
+	RuleCraft *ruleCraft = _rule->getCraft("STR_BASE");
+	if (ruleCraft == 0 || ruleCraft->getWeapons() == 0) return 0;
+
+	Craft *craft = new Craft(ruleCraft, this, 0);
+	craft->setName(getName());
+
+	_reloadBaseCraft = true;
+
+	return craft;
+}
+
+/**
+ * Gets the virtual craft.
+ */
+Craft *Base::getBaseCraft()
+{
+	if (_baseCraft == 0)
+	{
+		_baseCraft = newBaseCraft();
+	}
+
+	if (_reloadBaseCraft && _baseCraft != 0)
+	{
+		if (_defenses.empty())
+		{
+			// looks like was deleted last defense system. nothing to reload.
+			delete _baseCraft;
+			_baseCraft = 0;
+		}
+		else
+		{
+			reloadBaseCraft();
+		}
+	}
+
+	return _baseCraft;
+}
+
+/**
+ * Reloading the virtual craft with weapons based on the base defense.
+ */
+void Base::reloadBaseCraft()
+{
+	// count defenses of each type
+	std::map<const RuleBaseFacility*, int> numDefenses;
+	for (std::vector<BaseFacility*>::const_iterator d = _defenses.begin(); d != _defenses.end(); ++d)
+	{
+		numDefenses[(*d)->getRules()] += 1;
+	}
+
+	// reloading
+	std::vector<CraftWeapon*> &weapons = *_baseCraft->getWeapons();
+	for (std::vector<CraftWeapon*>::iterator w = weapons.begin(); w != weapons.end(); ++w)
+	{
+		delete (*w);
+		(*w) = 0;
+
+		// choose a best defense by range
+		std::map<const RuleBaseFacility*, int>::iterator bestDefense = numDefenses.begin();
+		for (std::map<const RuleBaseFacility*, int>::iterator d = numDefenses.begin(); d != numDefenses.end(); ++d)
+		{
+			if (bestDefense->first->getDefenseRange() < d->first->getDefenseRange())
+				bestDefense = d;
+		}
+
+		// generate weapons from defenses
+		// quantity of rounds = quantity of defenses * max ammo for this defense
+		if (bestDefense != numDefenses.end())
+		{
+			RuleCraftWeapon *ruleCW = _rule->getCraftWeapon(bestDefense->first->getType());
+			if (ruleCW != 0)
+			{
+				(*w) = new CraftWeapon(ruleCW, bestDefense->second * ruleCW->getAmmoMax());
+			}
+			numDefenses.erase(bestDefense);
+		}
+	}
+	numDefenses.clear();
+	_reloadBaseCraft = false;
+}
+
+/**
+ * Update vector of defense facilities.
+ */
+void Base::updateDefenses()
+{
+	_defenses.clear();
+	for (std::vector<BaseFacility*>::const_iterator i = _facilities.begin(); i != _facilities.end(); ++i)
+	{
+		if ((*i)->getRules()->getDefenseValue() > 0 && (*i)->getBuildTime() == 0)
+		{
+			_defenses.push_back(*i);
+		}
+	}
+
+	_reloadBaseCraft = true;
+}
+
+/**
+ * Delete facility and update vectors.
+ * @param Iterator facilities
+ */
+void Base::deleteFacility(std::vector<BaseFacility*>::iterator facility)
+{
+	bool isItDefense = (*facility)->getRules()->getDefenseValue() > 0;
+	delete *facility;
+	_facilities.erase(facility);
+
+	if (isItDefense) updateDefenses();
+}
+
+/**
+ * Sets base defense to recharging after battle.
+ * @param True if the defense attacked an UFO.
+ */
+void Base::setRechargeDefense(bool ufoAttacked)
+{
+	_reloadBaseCraft = ufoAttacked;
+	// 60 sec/min / 5 sec/inc = 12 inc/min
+	_defenseRechargeTimeCounter = 12 * _rule->getDefenseRechargeTime();
+
+	if (ufoAttacked && RNG::percent(_rule->getDefenseRetaliationChance()))
+	{
+		setRetaliationTarget(true);
+	}
+}
+
+/**
  * Functor to check for mind shield capability.
  */
 struct isMindShield: public std::unary_function<BaseFacility*, bool>
@@ -1268,15 +1483,6 @@ int Base::getGravShields() const
 
 void Base::setupDefenses()
 {
-	_defenses.clear();
-	for (std::vector<BaseFacility*>::const_iterator i = _facilities.begin(); i != _facilities.end(); ++i)
-	{
-		if ((*i)->getBuildTime() == 0 && (*i)->getRules()->getDefenseValue())
-		{
-			_defenses.push_back(*i);
-		}
-	}
-
 	for (std::vector<Craft*>::iterator i = getCrafts()->begin(); i != getCrafts()->end(); ++i)
 		for (std::vector<Vehicle*>::iterator j = (*i)->getVehicles()->begin(); j != (*i)->getVehicles()->end(); ++j)
 			for (std::vector<Vehicle*>::iterator k = _vehicles.begin(); k != _vehicles.end(); ++k)
@@ -1634,8 +1840,7 @@ void Base::destroyFacility(std::vector<BaseFacility*>::iterator facility)
 			}
 		}
 	}
-	delete *facility;
-	_facilities.erase(facility);
+	deleteFacility(facility);
 }
 
 /**
@@ -1644,8 +1849,6 @@ void Base::destroyFacility(std::vector<BaseFacility*>::iterator facility)
  */
 void Base::cleanupDefenses(bool reclaimItems)
 {
-	_defenses.clear();
-
 	for (std::vector<Craft*>::iterator i = getCrafts()->begin(); i != getCrafts()->end(); ++i)
 		for (std::vector<Vehicle*>::iterator j = (*i)->getVehicles()->begin(); j != (*i)->getVehicles()->end(); ++j)
 			for (std::vector<Vehicle*>::iterator k = _vehicles.begin(); k != _vehicles.end(); ++k)

@@ -108,7 +108,8 @@ protected:
 	std::vector<StatString*> _statStrings;
 	std::map<std::string, RuleMusic *> _musics;
 	RuleGlobe *_globe;
-	int _costSoldier, _costEngineer, _costScientist, _timePersonnel, _initialFunding;
+	int _defenseRechargeTime, _defenseRetaliationChance;
+	int _costSoldier, _costEngineer, _costScientist, _timePersonnel, _initialFunding, _turnAIUseGrenade, _turnAIUseBlaster;
 	int _maxViewDistance, _maxDarknessToSeeUnits;
 	std::string _alienFuel;
 	YAML::Node _startingBase;
@@ -196,6 +197,12 @@ public:
 	std::map<std::string, RuleInventory*> *getInventories();
 	/// Gets the ruleset for a specific inventory.
 	RuleInventory *getInventory(const std::string &id) const;
+	/// Gets the defense's cooldown value.
+	int getDefenseRechargeTime() const       {return _defenseRechargeTime;}
+	/// Checks possibility of using active defense.
+	bool isDefenseWorks() const              {return _defenseRechargeTime > 0;}
+	/// Gets chance of detection Xcom base by aliens during ground to air attack.
+	int getDefenseRetaliationChance() const  {return _defenseRetaliationChance;}
 	/// Gets the cost of a soldier.
 	int getSoldierCost() const;
 	/// Gets the cost of an engineer.
@@ -252,6 +259,10 @@ public:
 	Soldier *genSoldier(SavedGame *save) const;
 	/// Gets the item to be used as fuel for ships.
 	const std::string getAlienFuel() const;
+	/// Gets first turn when AI can use grenade.
+	int getTurnAIUseGrenade() const {return _turnAIUseGrenade;}
+	/// Gets first turn when AI can use Blaster launcher.
+	int getTurnAIUseBlaster() const {return _turnAIUseBlaster;}
 	/// Gets the minimum radar's range.
 	int getMinRadarRange() const;
 	/// Gets information on an interface element.

@@ -27,6 +27,7 @@ namespace OpenXcom
 {
 
 const int STANDOFF_DIST = 560;
+const std::string STR_EMPTY = std::string();
 enum ColorNames { CRAFT_MIN, CRAFT_MAX, RADAR_MIN, RADAR_MAX, DAMAGE_MIN, DAMAGE_MAX, BLOB_MIN, RANGE_METER };
 
 class ImageButton;
@@ -45,7 +46,7 @@ class CraftWeaponProjectile;
  */
 class DogfightState : public State
 {
-private:
+protected:
 	Timer *_craftDamageAnimTimer;
 	Surface *_window, *_battle, *_range1, *_range2, *_damage;
 	InteractiveSurface *_btnMinimize, *_preview, *_weapon1, *_weapon2;
@@ -70,15 +71,15 @@ private:
 
 public:
 	/// Creates the Dogfight state.
-	DogfightState(Globe *globe, Craft *craft, Ufo *ufo);
+	DogfightState(Globe *globe, Craft *craft, Ufo *ufo, const std::string &interwin = STR_EMPTY);
 	/// Cleans up the Dogfight state.
-	~DogfightState();
+	virtual ~DogfightState();
 	/// Runs the timers.
 	void think();
 	/// Animates the window.
 	void animate();
 	/// Moves the craft.
-	void update();
+	virtual void update();
 	// Fires the first weapon.
 	void fireWeapon1();
 	// Fires the second weapon.
@@ -92,13 +93,13 @@ public:
 	/// Changes the status text.
 	void setStatus(const std::string &status);
 	/// Handler for clicking the Minimize button.
-	void btnMinimizeClick(Action *action);
+	virtual void btnMinimizeClick(Action *action);
 	/// Handler for pressing the Standoff button.
-	void btnStandoffPress(Action *action);
+	virtual void btnStandoffPress(Action *action);
 	/// Handler for pressing the Cautious Attack button.
-	void btnCautiousPress(Action *action);
+	virtual void btnCautiousPress(Action *action);
 	/// Handler for pressing the Standard Attack button.
-	void btnStandardPress(Action *action);
+	virtual void btnStandardPress(Action *action);
 	/// Handler for pressing the Aggressive Attack button.
 	void btnAggressivePress(Action *action);
 	/// Handler for pressing the Disengage button.
@@ -106,7 +107,7 @@ public:
 	/// Handler for clicking the Ufo button.
 	void btnUfoClick(Action *action);
 	/// Handler for clicking the Preview graphic.
-	void previewClick(Action *action);
+	virtual void previewClick(Action *action);
 	/// Draws UFO.
 	void drawUfo();
 	/// Draws projectiles.
@@ -126,7 +127,7 @@ public:
 	/// Sets state minimized or maximized.
 	void setMinimized(const bool minimized);
 	/// Handler for clicking the minimized interception window icon.
-	void btnMinimizedIconClick(Action *action);
+	virtual void btnMinimizedIconClick(Action *action);
 	/// Gets interception number.
 	int getInterceptionNumber() const;
 	/// Sets interception number.

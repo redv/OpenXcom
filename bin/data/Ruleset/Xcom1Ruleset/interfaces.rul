@@ -305,11 +305,23 @@ interfaces:
         color: 133   # minty green
   - type: dogfight
     elements:
-      - id: button
+      - id: standoffButton
+        color: 81
+      - id: cautiousButton
+        color: 81
+      - id: standardButton
+        color: 81
+      - id: aggressiveButton
+        color: 81
+      - id: disengageButton
+        color: 81
+      - id: ufoButton
         color: 81
       - id: text
         color: 89
       - id: numbers
+        color: 89
+      - id: distance
         color: 89
       - id: minimizedNumber
         color: 80
@@ -325,6 +337,11 @@ interfaces:
       - id: damageRange
         color: 13
         color2: 14
+      - id: disabledWeapon
+        color: 24
+        color2: 7
+      - id: disabledAmmo
+        color: 24
   - type: baseNaming
     elements:
       - id: palette

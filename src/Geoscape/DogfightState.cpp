@@ -277,25 +277,27 @@ DogfightState::DogfightState(Globe *globe, Craft *craft, Ufo *ufo, const std::st
 	add(_range2);
 	add(_damage);
 	add(_btnMinimize);
-	add(_btnStandoff, "button", "dogfight");
-	add(_btnCautious, "button", "dogfight");
-	add(_btnStandard, "button", "dogfight");
-	add(_btnAggressive, "button", "dogfight");
-	add(_btnDisengage, "button", "dogfight");
-	add(_btnUfo, "button", "dogfight");
-	add(_txtAmmo1, "numbers", "dogfight");
-	add(_txtAmmo2, "numbers", "dogfight");
-	add(_txtDistance, "numbers", "dogfight");
+	add(_btnStandoff, "standoffButton", "dogfight", _window);
+	add(_btnCautious, "cautiousButton", "dogfight", _window);
+	add(_btnStandard, "standardButton", "dogfight", _window);
+	add(_btnAggressive, "aggressiveButton", "dogfight", _window);
+	add(_btnDisengage, "disengageButton", "dogfight", _window);
+	add(_btnUfo, "ufoButton", "dogfight", _window);
+	add(_txtAmmo1, "numbers", "dogfight", _window);
+	add(_txtAmmo2, "numbers", "dogfight", _window);
+	add(_txtDistance, "distance", "dogfight", _window);
 	add(_preview);
-	add(_txtStatus, "text", "dogfight");
+	add(_txtStatus, "text", "dogfight", _window);
 	add(_btnMinimizedIcon);
 	add(_txtInterceptionNumber, "minimizedNumber", "dogfight");
 
-	if (_txtDistance->isTFTDMode())
-	{
-		_txtDistance->setY(_txtDistance->getY() + 1);
-		_txtDistance->setX(_txtDistance->getX() + 7);
-	}
+	_btnStandoff->invalidate(false);
+	_btnCautious->invalidate(false);
+	_btnStandard->invalidate(false);
+	_btnAggressive->invalidate(false);
+	_btnDisengage->invalidate(false);
+	_btnUfo->invalidate(false);
+
 	// Set up objects
 	Surface *graphic = 0;
 	if (!interwin.empty())
@@ -384,15 +386,19 @@ DogfightState::DogfightState(Globe *globe, Craft *craft, Ufo *ufo, const std::st
 	_txtInterceptionNumber->setText(ss1.str());
 	_txtInterceptionNumber->setVisible(false);
 
+	RuleInterface *dogfightInterface = _game->getRuleset()->getInterface("dogfight");
 	// define the colors to be used
-	_colors[CRAFT_MIN] = _game->getRuleset()->getInterface("dogfight")->getElement("craftRange")->color;
-	_colors[CRAFT_MAX] = _game->getRuleset()->getInterface("dogfight")->getElement("craftRange")->color2;
-	_colors[RADAR_MIN] = _game->getRuleset()->getInterface("dogfight")->getElement("radarRange")->color;
-	_colors[RADAR_MAX] = _game->getRuleset()->getInterface("dogfight")->getElement("radarRange")->color2;
-	_colors[DAMAGE_MIN] = _game->getRuleset()->getInterface("dogfight")->getElement("damageRange")->color;
-	_colors[DAMAGE_MAX] = _game->getRuleset()->getInterface("dogfight")->getElement("damageRange")->color2;
-	_colors[BLOB_MIN] = _game->getRuleset()->getInterface("dogfight")->getElement("radarDetail")->color;
-	_colors[RANGE_METER] = _game->getRuleset()->getInterface("dogfight")->getElement("radarDetail")->color2;
+	_colors[CRAFT_MIN] = dogfightInterface->getElement("craftRange")->color;
+	_colors[CRAFT_MAX] = dogfightInterface->getElement("craftRange")->color2;
+	_colors[RADAR_MIN] = dogfightInterface->getElement("radarRange")->color;
+	_colors[RADAR_MAX] = dogfightInterface->getElement("radarRange")->color2;
+	_colors[DAMAGE_MIN] = dogfightInterface->getElement("damageRange")->color;
+	_colors[DAMAGE_MAX] = dogfightInterface->getElement("damageRange")->color2;
+	_colors[BLOB_MIN] = dogfightInterface->getElement("radarDetail")->color;
+	_colors[RANGE_METER] = dogfightInterface->getElement("radarDetail")->color2;
+	_colors[DISABLED_WEAPON] = dogfightInterface->getElement("disabledWeapon")->color;
+	_colors[DISABLED_RANGE] = dogfightInterface->getElement("disabledWeapon")->color2;
+	_colors[DISABLED_AMMO] = dogfightInterface->getElement("disabledAmmo")->color;
 
 	for (unsigned int i = 0; i < _craft->getRules()->getWeapons(); ++i)
 	{
@@ -1573,7 +1579,6 @@ void DogfightState::recolor(const int weaponNo, const bool currentState)
 	InteractiveSurface *weapon = 0;
 	Text *ammo = 0;
 	Surface *range = 0;
-	int weaponAndAmmoOffset = 24, rangeOffset = 7;
 	if (weaponNo == 0)
 	{
 		weapon = _weapon1;
@@ -1593,15 +1598,15 @@ void DogfightState::recolor(const int weaponNo, const bool currentState)
 
 	if (currentState)
 	{
-		weapon->offset(-weaponAndAmmoOffset);
-		ammo->offset(-weaponAndAmmoOffset);
-		range->offset(-rangeOffset);
+		weapon->offset(-_colors[DISABLED_WEAPON]);
+		ammo->offset(-_colors[DISABLED_AMMO]);
+		range->offset(-_colors[DISABLED_RANGE]);
 	}
 	else
 	{
-		weapon->offset(weaponAndAmmoOffset);
-		ammo->offset(weaponAndAmmoOffset);
-		range->offset(rangeOffset);
+		weapon->offset(_colors[DISABLED_WEAPON]);
+		ammo->offset(_colors[DISABLED_AMMO]);
+		range->offset(_colors[DISABLED_RANGE]);
 	}
 }
 

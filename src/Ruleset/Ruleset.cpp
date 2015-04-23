@@ -77,7 +77,7 @@ namespace OpenXcom
 /**
  * Creates a ruleset with blank sets of rules.
  */
-Ruleset::Ruleset() : _costSoldier(0), _costEngineer(0), _costScientist(0), _timePersonnel(0), _initialFunding(0), _startingTime(6, 1, 1, 1999, 12, 0, 0), _modIndex(0), _facilityListOrder(0), _craftListOrder(0), _itemListOrder(0), _researchListOrder(0),  _manufactureListOrder(0), _ufopaediaListOrder(0), _invListOrder(0)
+Ruleset::Ruleset() : _costSoldier(0), _costEngineer(0), _costScientist(0), _timePersonnel(0), _initialFunding(0), _turnAIUseGrenade(3), _turnAIUseBlaster(3), _startingTime(6, 1, 1, 1999, 12, 0, 0), _modIndex(0), _facilityListOrder(0), _craftListOrder(0), _itemListOrder(0), _researchListOrder(0),  _manufactureListOrder(0), _ufopaediaListOrder(0), _invListOrder(0)
 {
 	_globe = new RuleGlobe();
 
@@ -459,6 +459,8 @@ void Ruleset::loadFile(const std::string &filename)
 	_timePersonnel = doc["timePersonnel"].as<int>(_timePersonnel);
 	_initialFunding = doc["initialFunding"].as<int>(_initialFunding);
 	_alienFuel = doc["alienFuel"].as<std::string>(_alienFuel);
+	_turnAIUseGrenade = doc["turnAIUseGrenade"].as<int>(_turnAIUseGrenade);
+	_turnAIUseBlaster = doc["turnAIUseBlaster"].as<int>(_turnAIUseBlaster);
 	for (YAML::const_iterator i = doc["ufoTrajectories"].begin(); i != doc["ufoTrajectories"].end(); ++i)
 	{
 		UfoTrajectory *rule = loadRule(*i, &_ufoTrajectories, 0, "id");
@@ -605,6 +607,8 @@ void Ruleset::loadFile(const std::string &filename)
 		ResourcePack::BATTLESCAPE_CURSOR = (*i)["battlescapeCursor"].as<int>(ResourcePack::BATTLESCAPE_CURSOR);
 		ResourcePack::UFOPAEDIA_CURSOR = (*i)["ufopaediaCursor"].as<int>(ResourcePack::UFOPAEDIA_CURSOR);
 		ResourcePack::GRAPHS_CURSOR = (*i)["graphsCursor"].as<int>(ResourcePack::GRAPHS_CURSOR);
+		ResourcePack::DEBRIEF_MUSIC_GOOD = (*i)["goodDebriefingMusic"].as<std::string>(ResourcePack::DEBRIEF_MUSIC_GOOD);
+		ResourcePack::DEBRIEF_MUSIC_BAD = (*i)["badDebriefingMusic"].as<std::string>(ResourcePack::DEBRIEF_MUSIC_BAD);
 	}
 	for (YAML::const_iterator i = doc["transparencyLUTs"].begin(); i != doc["transparencyLUTs"].end(); ++i)
 	{

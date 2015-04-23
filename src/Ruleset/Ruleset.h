@@ -109,8 +109,8 @@ protected:
 	std::map<std::string, RuleMusic *> _musics;
 	RuleGlobe *_globe;
 	int _defenseRechargeTime, _defenseRetaliationChance;
-	int _costSoldier, _costEngineer, _costScientist, _timePersonnel, _initialFunding, _turnAIUseGrenade, _turnAIUseBlaster;
 	int _maxViewDistance, _maxDarknessToSeeUnits;
+	int _costSoldier, _costEngineer, _costScientist, _timePersonnel, _initialFunding, _turnAIUseGrenade, _turnAIUseBlaster;
 	std::string _alienFuel;
 	YAML::Node _startingBase;
 	GameTime _startingTime;
